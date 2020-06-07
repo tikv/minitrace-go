@@ -35,7 +35,15 @@ func TraceEnable(ctx context.Context, event uint32) (context.Context, TraceHandl
     return nCtx, TraceHandle{SpanHandle{spanCtx, 0}}
 }
 
-func NewSpan(ctx context.Context, event uint32) (context.Context, SpanHandle) {
+func NewSpanWithContext(ctx context.Context, event uint32) (context.Context, SpanHandle) {
+    handle := NewSpan(ctx, event)
+    if handle.spanContext != nil {
+        return context.WithValue(ctx, key, handle.spanContext), handle
+    }
+    return ctx, handle
+}
+
+func NewSpan(ctx context.Context, event uint32) SpanHandle {
     switch v := ctx.Value(key).(type) {
     case *spanContext:
         id := atomic.AddUint64(&v.tracingContext.maxId, 1)
@@ -58,7 +66,7 @@ func NewSpan(ctx context.Context, event uint32) (context.Context, SpanHandle) {
                 currentId:      id,
                 currentGid:     goid,
             }
-            return context.WithValue(ctx, key, spanCtx), SpanHandle{spanCtx, index}
+            return SpanHandle{spanCtx, index}
         } else {
             tracedSpans := &localSpans{
                 spans:        []Span{span},
@@ -71,11 +79,11 @@ func NewSpan(ctx context.Context, event uint32) (context.Context, SpanHandle) {
                 currentId:      id,
                 currentGid:     goid,
             }
-            return context.WithValue(ctx, key, spanCtx), SpanHandle{spanCtx, 0}
+            return SpanHandle{spanCtx, 0}
         }
     }
 
-    return ctx, SpanHandle{}
+    return SpanHandle{}
 }
 
 type SpanHandle struct {

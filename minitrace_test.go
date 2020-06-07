@@ -21,7 +21,7 @@ func tracedFunc(l int, b *testing.B) {
     ctx, handle := TraceEnable(context.Background(), 0)
 
     for i := 1; i < l; i++ {
-        _, handle := NewSpan(ctx, uint32(i))
+        handle := NewSpan(ctx, uint32(i))
         handle.Finish()
     }
 
