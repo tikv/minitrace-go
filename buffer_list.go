@@ -24,17 +24,14 @@ func newBufferList() *bufferList {
 
 func (bl *bufferList) slot() *Span {
     idx := bl.len & ((1 << POW) - 1)
-    var cur *buffer
     if idx == 0 {
-        cur = bufferPool.Get().(*buffer)
-        cur.next = bl.head
-        bl.head = cur
-    } else {
-        cur = bl.head
+        n := bufferPool.Get().(*buffer)
+        n.next = bl.head
+        bl.head = n
     }
 
     bl.len += 1
-    return &cur.array[idx]
+    return &bl.head.array[idx]
 }
 
 func (bl *bufferList) collect() []Span {
@@ -47,17 +44,18 @@ func (bl *bufferList) collect() []Span {
     res := make([]Span, bl.len, bl.len)
 
     size := 1 << POW
-    f := bl.len & (size - 1)
-    if f == 0 {
-        f = size
+    cursor := bl.len & (size - 1)
+    if cursor == 0 {
+        cursor = size
     }
 
-    copy(res[:f], h.array[:f])
+    copy(res[:cursor], h.array[:cursor])
     bufferPool.Put(h)
-    h = h.next
+    h = next
 
     for h != nil {
-        copy(res[:size], h.array[:size])
+        copy(res[cursor:cursor+size], h.array[:size])
+        cursor += size
         next = h.next
         bufferPool.Put(h)
         h = next

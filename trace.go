@@ -44,8 +44,11 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     if s, ok := ctx.(spanContext); ok {
         res.spanContext = s
     } else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
-        res.spanContext = s
         res.spanContext.parent = ctx
+        res.spanContext.tracingContext = s.tracingContext
+        res.spanContext.tracedSpans = s.tracedSpans
+        res.spanContext.currentGid = s.currentGid
+        res.spanContext.currentId = s.currentId
     } else {
         return
     }
@@ -73,12 +76,11 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
         slot.BeginNs = monotimeNs()
         slot.Event = event
 
-        tracedSpans := &localSpans{
+        res.spanContext.tracedSpans = &localSpans{
             spans:        bl,
             createTimeNs: realtimeNs(),
             refCount:     1,
         }
-        res.spanContext.tracedSpans = tracedSpans
         res.spanContext.currentId = id
         res.spanContext.currentGid = goid
         res.endNs = &slot.EndNs
@@ -93,16 +95,15 @@ type SpanHandle struct {
 
 func (hd *SpanHandle) Finish() {
     if hd.endNs != nil {
-        spanCtx := hd.spanContext
         *hd.endNs = monotimeNs()
-        spanCtx.tracedSpans.refCount -= 1
-        if spanCtx.tracedSpans.refCount == 0 {
-            spanCtx.tracingContext.mu.Lock()
-            spanCtx.tracingContext.collectedSpans = append(spanCtx.tracingContext.collectedSpans, SpanSet{
-                StartTimeNs: spanCtx.tracedSpans.createTimeNs,
-                Spans:       spanCtx.tracedSpans.spans.collect(),
+        hd.spanContext.tracedSpans.refCount -= 1
+        if hd.spanContext.tracedSpans.refCount == 0 {
+            hd.spanContext.tracingContext.mu.Lock()
+            hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, SpanSet{
+                StartTimeNs: hd.spanContext.tracedSpans.createTimeNs,
+                Spans:       hd.spanContext.tracedSpans.spans.collect(),
             })
-            spanCtx.tracingContext.mu.Unlock()
+            hd.spanContext.tracingContext.mu.Unlock()
         }
     }
 }
