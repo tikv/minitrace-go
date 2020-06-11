@@ -40,7 +40,7 @@ func (s spanContext) Value(key interface{}) interface{} {
 }
 
 type localSpans struct {
-    spans        []Span
+    spans        *bufferList
     createTimeNs uint64
     refCount     int
 }

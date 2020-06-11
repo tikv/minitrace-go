@@ -10,17 +10,18 @@ func TraceEnable(ctx context.Context, event uint32) (context.Context, TraceHandl
     tCtx := &tracingContext{
         maxId: 1,
     }
+    bl := newBufferList()
+    s := bl.slot()
+    s.Id = 1
+    s.Parent = 0
+    s.BeginNs = monotimeNs()
+    s.Event = event
+
     spanCtx := spanContext{
         parent:         ctx,
         tracingContext: tCtx,
         tracedSpans: &localSpans{
-            spans: []Span{{
-                Id:      1,
-                Parent:  0,
-                BeginNs: monotimeNs(),
-                EndNs:   0,
-                Event:   event,
-            }},
+            spans:        bl,
             createTimeNs: realtimeNs(),
             refCount:     1,
         },
@@ -28,73 +29,78 @@ func TraceEnable(ctx context.Context, event uint32) (context.Context, TraceHandl
         currentGid: gid.Get(),
     }
 
-    return spanCtx, TraceHandle{SpanHandle{spanCtx, 0}}
+    return spanCtx, TraceHandle{SpanHandle{spanCtx, &s.EndNs}}
 }
 
 func NewSpanWithContext(ctx context.Context, event uint32) (context.Context, SpanHandle) {
     handle := NewSpan(ctx, event)
-    if handle.index >= 0 {
+    if handle.endNs != nil {
         return handle.spanContext, handle
     }
     return ctx, handle
 }
 
-func NewSpan(ctx context.Context, event uint32) SpanHandle {
-    var spanCtx spanContext
+func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     if s, ok := ctx.(spanContext); ok {
-        spanCtx = s
+        res.spanContext = s
     } else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
-        spanCtx = s
-        spanCtx.parent = ctx
+        res.spanContext = s
+        res.spanContext.parent = ctx
     } else {
-        return SpanHandle{index: -1}
+        return
     }
 
-    id := atomic.AddUint32(&spanCtx.tracingContext.maxId, 1)
+    id := atomic.AddUint32(&res.spanContext.tracingContext.maxId, 1)
     goid := gid.Get()
-    span := Span{
-        Id:      id,
-        Parent:  spanCtx.currentId,
-        BeginNs: monotimeNs(),
-        EndNs:   0,
-        Event:   event,
-    }
 
-    if goid == spanCtx.currentGid {
-        index := len(spanCtx.tracedSpans.spans)
-        spanCtx.tracedSpans.refCount += 1
-        spanCtx.tracedSpans.spans = append(spanCtx.tracedSpans.spans, span)
-        spanCtx.currentId = id
-        spanCtx.currentGid = goid
-        return SpanHandle{spanCtx, index}
+    if goid == res.spanContext.currentGid {
+        slot := res.spanContext.tracedSpans.spans.slot()
+        slot.Id = id
+        slot.Parent = res.spanContext.currentId
+        slot.BeginNs = monotimeNs()
+        slot.Event = event
+
+        res.spanContext.tracedSpans.refCount += 1
+        res.spanContext.currentId = id
+        res.spanContext.currentGid = goid
+        res.endNs = &slot.EndNs
+        return
     } else {
+        bl := newBufferList()
+        slot := bl.slot()
+        slot.Id = id
+        slot.Parent = res.spanContext.currentId
+        slot.BeginNs = monotimeNs()
+        slot.Event = event
+
         tracedSpans := &localSpans{
-            spans:        []Span{span},
+            spans:        bl,
             createTimeNs: realtimeNs(),
             refCount:     1,
         }
-        spanCtx.tracedSpans = tracedSpans
-        spanCtx.currentId = id
-        spanCtx.currentGid = goid
-        return SpanHandle{spanCtx, 0}
+        res.spanContext.tracedSpans = tracedSpans
+        res.spanContext.currentId = id
+        res.spanContext.currentGid = goid
+        res.endNs = &slot.EndNs
+        return
     }
 }
 
 type SpanHandle struct {
     spanContext spanContext
-    index       int
+    endNs       *uint64
 }
 
-func (hd SpanHandle) Finish() {
-    if hd.index >= 0 {
+func (hd *SpanHandle) Finish() {
+    if hd.endNs != nil {
         spanCtx := hd.spanContext
-        spanCtx.tracedSpans.spans[hd.index].EndNs = monotimeNs()
+        *hd.endNs = monotimeNs()
         spanCtx.tracedSpans.refCount -= 1
         if spanCtx.tracedSpans.refCount == 0 {
             spanCtx.tracingContext.mu.Lock()
             spanCtx.tracingContext.collectedSpans = append(spanCtx.tracingContext.collectedSpans, SpanSet{
                 StartTimeNs: spanCtx.tracedSpans.createTimeNs,
-                Spans:       spanCtx.tracedSpans.spans,
+                Spans:       spanCtx.tracedSpans.spans.collect(),
             })
             spanCtx.tracingContext.mu.Unlock()
         }

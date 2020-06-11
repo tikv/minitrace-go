@@ -3,31 +3,60 @@ package minitrace
 import (
     "context"
     "fmt"
+    "github.com/opentracing/opentracing-go"
+    "sourcegraph.com/sourcegraph/appdash"
+    traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
     "sync"
     "testing"
 )
 
 func BenchmarkMiniTrace(b *testing.B) {
-    for i := 10; i < 100_001; i *= 10 {
-        b.Run(fmt.Sprintf("MiniTrace%d", i), func(b *testing.B) {
+    for i := 10; i < 100001; i *= 10 {
+        b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
             for j := 0; j < b.N; j++ {
-                tracedFunc(i, b)
+                ctx, handle := TraceEnable(context.Background(), 0)
+
+                for k := 1; k < i; k++ {
+                    _, handle := NewSpanWithContext(ctx, uint32(k))
+                    handle.Finish()
+                }
+
+                spanSets := handle.Finish()
+                if i != len(spanSets[0].Spans) {
+                   b.Fatalf("expected length %d, got %d", i, len(spanSets[0].Spans))
+                }
             }
         })
     }
 }
 
-func tracedFunc(l int, b *testing.B) {
-    ctx, handle := TraceEnable(context.Background(), 0)
+func BenchmarkAppdashTrace(b *testing.B) {
+    for i := 10; i < 10_001; i *= 10 {
+        b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+            for j := 0; j < b.N; j++ {
+                store := appdash.NewMemoryStore()
+                tracer := traceImpl.NewTracer(store)
+                span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
 
-    for i := 1; i < l; i++ {
-        _, handle := NewSpanWithContext(ctx, uint32(i))
-        handle.Finish()
-    }
+                for k := 1; k < i; k++ {
+                    if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
+                        span, _ := opentracing.StartSpanFromContextWithTracer(ctx, span.Tracer(), "child", opentracing.ChildOf(span.Context()))
+                        span.Finish()
+                    }
+                }
 
-    spanSets := handle.Finish()
-    if l != len(spanSets[0].Spans) {
-        b.Fatalf("expected length %d, got %d", l, len(spanSets[0].Spans))
+                span.Finish()
+
+                traces, err := store.Traces(appdash.TracesOpts{})
+                if err != nil {
+                    b.Fatal(err)
+                }
+
+                if i != len(traces[0].Sub)+1 {
+                    b.Fatalf("expected length %d, got %d", i, len(traces[0].Sub)+1)
+                }
+            }
+        })
     }
 }
 
