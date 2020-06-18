@@ -21,9 +21,9 @@ func BenchmarkMiniTrace(b *testing.B) {
                     handle.Finish()
                 }
 
-                spanSets := handle.Finish()
+                spanSets := handle.Collect()
                 if i != len(spanSets[0].Spans) {
-                   b.Fatalf("expected length %d, got %d", i, len(spanSets[0].Spans))
+                    b.Fatalf("expected length %d, got %d", i, len(spanSets[0].Spans))
                 }
             }
         })
@@ -84,7 +84,7 @@ func TestMiniTrace(t *testing.T) {
     }
 
     wg.Wait()
-    spanSets := handle.Finish()
+    spanSets := handle.Collect()
     if len(spanSets) != 25 {
         t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spanSets))
     }

@@ -112,7 +112,7 @@ type TraceHandle struct {
     SpanHandle
 }
 
-func (hd TraceHandle) Finish() (res []SpanSet) {
+func (hd TraceHandle) Collect() (res []SpanSet) {
     hd.SpanHandle.Finish()
 
     hd.spanContext.tracingContext.mu.Lock()
