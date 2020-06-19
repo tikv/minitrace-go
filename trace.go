@@ -1,3 +1,5 @@
+// Copyright 2020 TiKV Project Authors. Licensed under Apache-2.0.
+
 package minitrace
 
 import (
@@ -42,6 +44,7 @@ func NewSpanWithContext(ctx context.Context, event uint32) (context.Context, Spa
 
 func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     if s, ok := ctx.(spanContext); ok {
+        // We'd like to modify the context on "stack" directly to eliminate heap memory allocation
         res.spanContext = s
     } else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
         res.spanContext.parent = ctx
@@ -56,19 +59,8 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     id := atomic.AddUint32(&res.spanContext.tracingContext.maxId, 1)
     goid := gid.Get()
 
-    if goid == res.spanContext.currentGid {
-        slot := res.spanContext.tracedSpans.spans.slot()
-        slot.Id = id
-        slot.Parent = res.spanContext.currentId
-        slot.BeginNs = monotimeNs()
-        slot.Event = event
-
-        res.spanContext.tracedSpans.refCount += 1
-        res.spanContext.currentId = id
-        res.spanContext.currentGid = goid
-        res.endNs = &slot.EndNs
-        return
-    } else {
+    // Use per goroutine buffer to reduce synchronization overhead.
+    if goid != res.spanContext.currentGid {
         bl := newBufferList()
         slot := bl.slot()
         slot.Id = id
@@ -84,8 +76,20 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
         res.spanContext.currentId = id
         res.spanContext.currentGid = goid
         res.endNs = &slot.EndNs
-        return
+    } else {
+        slot := res.spanContext.tracedSpans.spans.slot()
+        slot.Id = id
+        slot.Parent = res.spanContext.currentId
+        slot.BeginNs = monotimeNs()
+        slot.Event = event
+
+        res.spanContext.tracedSpans.refCount += 1
+        res.spanContext.currentId = id
+        res.spanContext.currentGid = goid
+        res.endNs = &slot.EndNs
     }
+
+    return
 }
 
 type SpanHandle struct {
@@ -93,6 +97,7 @@ type SpanHandle struct {
     endNs       *uint64
 }
 
+// TODO: Prevent users from calling twice
 func (hd *SpanHandle) Finish() {
     if hd.endNs != nil {
         *hd.endNs = monotimeNs()

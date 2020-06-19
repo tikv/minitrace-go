@@ -1,4 +1,8 @@
-# minitrace-go
+# Minitrace-go
+[![Actions Status](https://github.com/pingcap-incubator/minitrace-go/workflows/CI/badge.svg)](https://github.com/pingcap-incubator/minitrace-go/actions)
+[![LICENSE](https://img.shields.io/github/license/pingcap-incubator/minitrace-go.svg)](https://github.com/pingcap-incubator/minitrace-go/blob/master/LICENSE)
+
+A high-performance, ergonomic timeline tracing library for Golang. 
 
 ## Basic Usage
 
@@ -6,9 +10,9 @@
 package main
 
 import (
-    "fmt"
     "context"
-    "github.com/zhongzc/minitrace-go"
+    "fmt"
+    "github.com/pingcap-incubator/minitrace-go"
 )
 
 func tracedFunc(ctx context.Context, event uint32) {

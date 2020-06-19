@@ -1,3 +1,5 @@
+// Copyright 2020 TiKV Project Authors. Licensed under Apache-2.0.
+
 package minitrace
 
 import (
@@ -39,6 +41,7 @@ func (s spanContext) Value(key interface{}) interface{} {
     }
 }
 
+// Represents a per goroutine buffer
 type localSpans struct {
     spans        *bufferList
     createTimeNs uint64
