@@ -24,7 +24,7 @@ type spanContext struct {
 
     tracingContext *tracingContext
     tracedSpans    *localSpans
-    currentId      uint32
+    currentId      uint64
     currentGid     int64
 }
 
@@ -60,7 +60,7 @@ type localSpans struct {
 }
 
 type tracingContext struct {
-    maxId uint32
+    maxId uint64
 
     mu             sync.Mutex
     collectedSpans []SpanSet

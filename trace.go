@@ -67,7 +67,7 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
         return
     }
 
-    id := atomic.AddUint32(&res.spanContext.tracingContext.maxId, 1)
+    id := atomic.AddUint64(&res.spanContext.tracingContext.maxId, 1)
     goid := gid.Get()
 
     // Use per goroutine buffer to reduce synchronization overhead.
@@ -103,7 +103,7 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     return
 }
 
-func CurrentSpanId(ctx context.Context) (id uint32, ok bool) {
+func CurrentSpanId(ctx context.Context) (id uint64, ok bool) {
     if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
         return s.currentId, true
     }

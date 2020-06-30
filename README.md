@@ -1,4 +1,4 @@
-# Minitrace-go
+# Minitrace-Go
 [![Actions Status](https://github.com/pingcap-incubator/minitrace-go/workflows/CI/badge.svg)](https://github.com/pingcap-incubator/minitrace-go/actions)
 [![LICENSE](https://img.shields.io/github/license/pingcap-incubator/minitrace-go.svg)](https://github.com/pingcap-incubator/minitrace-go/blob/master/LICENSE)
 
