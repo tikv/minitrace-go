@@ -103,6 +103,14 @@ func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
     return
 }
 
+func CurrentSpanId(ctx context.Context) (id uint32, ok bool) {
+    if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
+        return s.currentId, true
+    }
+
+    return
+}
+
 type SpanHandle struct {
     spanContext spanContext
     endNs       *uint64
