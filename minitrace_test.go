@@ -77,6 +77,10 @@ func TestMiniTrace(t *testing.T) {
     ctx, handle := TraceEnable(context.Background(), 0)
     var wg sync.WaitGroup
 
+    if id, ok := CurrentSpanId(ctx); !ok || id != 1 {
+        t.Fatalf("Span id of root span should be 1")
+    }
+
     for i := 1; i < 5; i++ {
         ctx, handle := NewSpanWithContext(ctx, uint32(i))
         wg.Add(1)
