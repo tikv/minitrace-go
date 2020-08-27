@@ -19,8 +19,8 @@ type SpanSet struct {
 }
 
 type Span struct {
-    Id      uint64
-    Parent  uint64 // 0 means Root
+    Id      uint32
+    Parent  uint32 // 0 means Root
     BeginNs uint64
     EndNs   uint64
     Event   uint32
