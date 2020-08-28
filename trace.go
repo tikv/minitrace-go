@@ -31,7 +31,7 @@ func TraceEnable(ctx context.Context, event uint32, traceId uint64) (context.Con
 	}
 	bl := newBufferList()
 	s := bl.slot()
-	s.Id = 1
+	s.Id = nextId()
 	s.Parent = 0
 	s.BeginNs = monotimeNs()
 	s.Event = event
@@ -44,7 +44,7 @@ func TraceEnable(ctx context.Context, event uint32, traceId uint64) (context.Con
 			createTimeNs: realtimeNs(),
 			refCount:     1,
 		},
-		currentId:  nextId(),
+		currentId:  s.Id,
 		currentGid: gid.Get(),
 	}
 
