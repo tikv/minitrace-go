@@ -14,14 +14,14 @@
 package minitrace
 
 type SpanSet struct {
-    StartTimeNs  uint64
-    Spans        []Span
+	StartTimeNs uint64
+	Spans       []Span
 }
 
 type Span struct {
-    Id      uint32
-    Parent  uint32 // 0 means Root
-    BeginNs uint64
-    EndNs   uint64
-    Event   uint32
+	Id      uint32
+	Parent  uint32 // 0 means Root
+	BeginNs uint64
+	EndNs   uint64
+	Event   uint32
 }
