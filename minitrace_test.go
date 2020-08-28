@@ -14,103 +14,103 @@
 package minitrace
 
 import (
-    "context"
-    "fmt"
-    "github.com/opentracing/opentracing-go"
-    "sourcegraph.com/sourcegraph/appdash"
-    traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
-    "sync"
-    "testing"
+	"context"
+	"fmt"
+	"github.com/opentracing/opentracing-go"
+	"sourcegraph.com/sourcegraph/appdash"
+	traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
+	"sync"
+	"testing"
 )
 
 func BenchmarkMiniTrace(b *testing.B) {
-    for i := 10; i < 100001; i *= 10 {
-        b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
-            for j := 0; j < b.N; j++ {
-                ctx, handle := TraceEnable(context.Background(), 0)
+	for i := 10; i < 100001; i *= 10 {
+		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
+			for j := 0; j < b.N; j++ {
+				ctx, handle := TraceEnable(context.Background(), 0, 10086)
 
-                for k := 1; k < i; k++ {
-                    _, handle := NewSpanWithContext(ctx, uint32(k))
-                    handle.Finish()
-                }
+				for k := 1; k < i; k++ {
+					_, handle := NewSpanWithContext(ctx, uint32(k))
+					handle.Finish()
+				}
 
-                spanSets := handle.Collect()
-                if i != len(spanSets[0].Spans) {
-                    b.Fatalf("expected length %d, got %d", i, len(spanSets[0].Spans))
-                }
-            }
-        })
-    }
+				spanSets := handle.Collect()
+				if i != len(spanSets[0].Spans) {
+					b.Fatalf("expected length %d, got %d", i, len(spanSets[0].Spans))
+				}
+			}
+		})
+	}
 }
 
 func BenchmarkAppdashTrace(b *testing.B) {
-    for i := 10; i < 10_001; i *= 10 {
-        b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
-            for j := 0; j < b.N; j++ {
-                store := appdash.NewMemoryStore()
-                tracer := traceImpl.NewTracer(store)
-                span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
+	for i := 10; i < 10_001; i *= 10 {
+		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			for j := 0; j < b.N; j++ {
+				store := appdash.NewMemoryStore()
+				tracer := traceImpl.NewTracer(store)
+				span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
 
-                for k := 1; k < i; k++ {
-                    if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-                        span, _ := opentracing.StartSpanFromContextWithTracer(ctx, span.Tracer(), "child", opentracing.ChildOf(span.Context()))
-                        span.Finish()
-                    }
-                }
+				for k := 1; k < i; k++ {
+					if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
+						span, _ := opentracing.StartSpanFromContextWithTracer(ctx, span.Tracer(), "child", opentracing.ChildOf(span.Context()))
+						span.Finish()
+					}
+				}
 
-                span.Finish()
+				span.Finish()
 
-                traces, err := store.Traces(appdash.TracesOpts{})
-                if err != nil {
-                    b.Fatal(err)
-                }
+				traces, err := store.Traces(appdash.TracesOpts{})
+				if err != nil {
+					b.Fatal(err)
+				}
 
-                if i != len(traces[0].Sub)+1 {
-                    b.Fatalf("expected length %d, got %d", i, len(traces[0].Sub)+1)
-                }
-            }
-        })
-    }
+				if i != len(traces[0].Sub)+1 {
+					b.Fatalf("expected length %d, got %d", i, len(traces[0].Sub)+1)
+				}
+			}
+		})
+	}
 }
 
 func TestMiniTrace(t *testing.T) {
-    ctx, handle := TraceEnable(context.Background(), 0)
-    var wg sync.WaitGroup
+	ctx, handle := TraceEnable(context.Background(), 0, 9527)
+	var wg sync.WaitGroup
 
-    if id, ok := CurrentSpanId(ctx); !ok || id != 1 {
-        t.Fatalf("Span id of root span should be 1")
-    }
+	if _, traceId, ok := CurrentId(ctx); !ok || traceId != 9527 {
+		t.Fatalf("Trace id should be %d", traceId)
+	}
 
-    for i := 1; i < 5; i++ {
-        ctx, handle := NewSpanWithContext(ctx, uint32(i))
-        wg.Add(1)
-        go func(prefix int) {
-            ctx, handle := NewSpanWithContext(ctx, uint32(prefix))
-            for i := 0; i < 5; i++ {
-                wg.Add(1)
-                go func(prefix int) {
-                    handle := NewSpan(ctx, uint32(prefix))
-                    handle.Finish()
-                    wg.Done()
-                }((prefix + i) * 10)
-            }
-            handle.Finish()
-            wg.Done()
-        }(i * 10)
-        handle.Finish()
-    }
+	for i := 1; i < 5; i++ {
+		ctx, handle := NewSpanWithContext(ctx, uint32(i))
+		wg.Add(1)
+		go func(prefix int) {
+			ctx, handle := NewSpanWithContext(ctx, uint32(prefix))
+			for i := 0; i < 5; i++ {
+				wg.Add(1)
+				go func(prefix int) {
+					handle := NewSpan(ctx, uint32(prefix))
+					handle.Finish()
+					wg.Done()
+				}((prefix + i) * 10)
+			}
+			handle.Finish()
+			wg.Done()
+		}(i * 10)
+		handle.Finish()
+	}
 
-    wg.Wait()
-    spanSets := handle.Collect()
-    if len(spanSets) != 25 {
-        t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spanSets))
-    }
+	wg.Wait()
+	spanSets := handle.Collect()
+	if len(spanSets) != 25 {
+		t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spanSets))
+	}
 
-    sum := 0
-    for _, spanSet := range spanSets {
-        sum += len(spanSet.Spans)
-    }
-    if sum != 29 {
-        t.Fatalf("count of spans expected %d, but got %d", 29, sum)
-    }
+	sum := 0
+	for _, spanSet := range spanSets {
+		sum += len(spanSet.Spans)
+	}
+	if sum != 29 {
+		t.Fatalf("count of spans expected %d, but got %d", 29, sum)
+	}
 }
