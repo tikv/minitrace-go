@@ -13,7 +13,9 @@
 
 package jaeger
 
-import "github.com/pingcap-incubator/minitrace-go"
+import (
+    "github.com/tikv/minitrace-go"
+)
 
 type ReferenceType int32
 
@@ -51,9 +53,9 @@ func ThriftCompactEncode(
         spanLen += len(result.Spans)
     }
     if spanLen < 15 {
-        *buf = append(*buf, uint8(spanLen << 4) | 12)
+        *buf = append(*buf, uint8(spanLen<<4)|12)
     } else {
-        *buf = append(*buf, 0b1111_0000 | 12)
+        *buf = append(*buf, 0b1111_0000|12)
         encodeVarInt(buf, uint64(spanLen))
     }
 
@@ -90,6 +92,29 @@ func ThriftCompactEncode(
             *buf = append(*buf, 0x16)
             durationUs := (span.EndNs - span.BeginNs) / 1000
             encodeVarInt(buf, zigzagFromI64(int64(durationUs)))
+            propertiesLen := len(span.Properties)
+            if propertiesLen > 0 {
+                *buf = append(*buf, 0x19)
+                if propertiesLen < 15 {
+                    *buf = append(*buf, uint8((propertiesLen<<4)|12))
+                } else {
+                    *buf = append(*buf, uint8(0b1111_0000|12))
+                    encodeVarInt(buf, uint64(propertiesLen))
+                }
+
+                for _, p := range span.Properties {
+                    *buf = append(*buf, 0x18)
+                    encodeBytes(buf, []byte(p.Key))
+
+                    *buf = append(*buf, 0x15)
+                    *buf = append(*buf, 0x00)
+
+                    *buf = append(*buf, 0x18)
+                    encodeBytes(buf, []byte(p.Value))
+
+                    *buf = append(*buf, 0x00)
+                }
+            }
             *buf = append(*buf, 0x00)
         }
     }

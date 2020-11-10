@@ -66,6 +66,7 @@ func (bl *bufferList) collect() []Span {
 	for remainingLen > sizePerBuffer {
 		cursor := bl.len - remainingLen
 		copy(res[cursor:cursor+sizePerBuffer], h.array[:])
+		h.array = [256]Span{}
 		remainingLen -= sizePerBuffer
 		n := h.next
 		bufferPool.Put(h)
@@ -74,6 +75,7 @@ func (bl *bufferList) collect() []Span {
 
 	cursor := bl.len - remainingLen
 	copy(res[cursor:], h.array[:remainingLen])
+	h.array = [256]Span{}
 	bufferPool.Put(h)
 
 	return res
