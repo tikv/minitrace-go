@@ -19,6 +19,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"sourcegraph.com/sourcegraph/appdash"
 	traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -27,10 +28,10 @@ func BenchmarkMiniTrace(b *testing.B) {
 	for i := 10; i < 100001; i *= 10 {
 		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
 			for j := 0; j < b.N; j++ {
-				ctx, handle := TraceEnable(context.Background(), 0, 10086)
+				ctx, handle := TraceEnable(context.Background(), "root", 10086)
 
 				for k := 1; k < i; k++ {
-					_, handle := NewSpanWithContext(ctx, uint32(k))
+					_, handle := NewSpanWithContext(ctx, strconv.Itoa(k))
 					handle.Finish()
 				}
 
@@ -74,7 +75,7 @@ func BenchmarkAppdashTrace(b *testing.B) {
 }
 
 func TestMiniTrace(t *testing.T) {
-	ctx, handle := TraceEnable(context.Background(), 0, 9527)
+	ctx, handle := TraceEnable(context.Background(), "root", 9527)
 	var wg sync.WaitGroup
 
 	if _, traceId, ok := CurrentId(ctx); !ok || traceId != 9527 {
@@ -82,14 +83,14 @@ func TestMiniTrace(t *testing.T) {
 	}
 
 	for i := 1; i < 5; i++ {
-		ctx, handle := NewSpanWithContext(ctx, uint32(i))
+		ctx, handle := NewSpanWithContext(ctx, strconv.Itoa(i))
 		wg.Add(1)
 		go func(prefix int) {
-			ctx, handle := NewSpanWithContext(ctx, uint32(prefix))
+			ctx, handle := NewSpanWithContext(ctx, strconv.Itoa(prefix))
 			for i := 0; i < 5; i++ {
 				wg.Add(1)
 				go func(prefix int) {
-					handle := NewSpan(ctx, uint32(prefix))
+					handle := NewSpan(ctx, strconv.Itoa(prefix))
 					handle.Finish()
 					wg.Done()
 				}((prefix + i) * 10)

@@ -25,7 +25,7 @@ func nextId() uint32 {
 	return atomic.AddUint32(&idGen, 1)
 }
 
-func TraceEnable(ctx context.Context, event uint32, traceId uint64) (context.Context, TraceHandle) {
+func TraceEnable(ctx context.Context, event string, traceId uint64) (context.Context, TraceHandle) {
 	tCtx := &tracingContext{
 		traceId: traceId,
 	}
@@ -51,7 +51,7 @@ func TraceEnable(ctx context.Context, event uint32, traceId uint64) (context.Con
 	return spanCtx, TraceHandle{SpanHandle{spanCtx, &s.EndNs}}
 }
 
-func NewSpanWithContext(ctx context.Context, event uint32) (context.Context, SpanHandle) {
+func NewSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := NewSpan(ctx, event)
 	if handle.endNs != nil {
 		return handle.spanContext, handle
@@ -59,7 +59,7 @@ func NewSpanWithContext(ctx context.Context, event uint32) (context.Context, Spa
 	return ctx, handle
 }
 
-func NewSpan(ctx context.Context, event uint32) (res SpanHandle) {
+func NewSpan(ctx context.Context, event string) (res SpanHandle) {
 	if s, ok := ctx.(spanContext); ok {
 		// We'd like to modify the context on "stack" directly to eliminate heap memory allocation
 		res.spanContext = s

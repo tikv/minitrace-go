@@ -35,8 +35,6 @@ func ThriftCompactEncode(
     traceIdHigh int64,
     traceIdLow int64,
     traceResults []minitrace.SpanSet,
-    spanRemap func(*minitrace.Span) SpanInfo,
-
 ) {
     *buf = append(*buf, []uint8{
         0x82, 0x81, 0x00, 0x09, 0x65, 0x6d, 0x69, 0x74, 0x42, 0x61, 0x74, 0x63, 0x68, 0x1c, 0x1c,
@@ -63,26 +61,25 @@ func ThriftCompactEncode(
         startNs := traceResult.StartTimeNs
         anchorNs := traceResult.Spans[0].BeginNs
         for _, span := range traceResult.Spans {
-            jaegerSpan := spanRemap(&span)
             *buf = append(*buf, 0x16)
             encodeVarInt(buf, zigzagFromI64(traceIdLow))
             *buf = append(*buf, 0x16)
             encodeVarInt(buf, zigzagFromI64(traceIdHigh))
             *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(jaegerSpan.SelfId))
+            encodeVarInt(buf, zigzagFromI64(int64(span.Id)))
             *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(jaegerSpan.ParentId))
+            encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
             *buf = append(*buf, 0x18)
-            encodeBytes(buf, []uint8(jaegerSpan.OperationName))
+            encodeBytes(buf, []uint8(span.Event))
 
             *buf = append(*buf, []uint8{0x19, 0x1c, 0x15}...)
-            encodeVarInt(buf, uint64(zigzagFromI32(int32(jaegerSpan.Ref))))
+            encodeVarInt(buf, uint64(zigzagFromI32(int32(FollowFrom))))
             *buf = append(*buf, 0x16)
             encodeVarInt(buf, zigzagFromI64(traceIdLow))
             *buf = append(*buf, 0x16)
             encodeVarInt(buf, zigzagFromI64(traceIdHigh))
             *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(jaegerSpan.ParentId))
+            encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
             *buf = append(*buf, 0x00)
             *buf = append(*buf, 0x15)
             *buf = append(*buf, 0x02)
