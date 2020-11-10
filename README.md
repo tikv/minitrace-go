@@ -1,6 +1,6 @@
 # Minitrace-Go
-[![Actions Status](https://github.com/pingcap-incubator/minitrace-go/workflows/CI/badge.svg)](https://github.com/pingcap-incubator/minitrace-go/actions)
-[![LICENSE](https://img.shields.io/github/license/pingcap-incubator/minitrace-go.svg)](https://github.com/pingcap-incubator/minitrace-go/blob/master/LICENSE)
+[![Actions Status](https://github.com/tikv/minitrace-go/workflows/CI/badge.svg)](https://github.com/tikv/minitrace-go/actions)
+[![LICENSE](https://img.shields.io/github/license/tikv/minitrace-go.svg)](https://github.com/tikv/minitrace-go/blob/master/LICENSE)
 
 A high-performance, ergonomic timeline tracing library for Golang. 
 
@@ -12,7 +12,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/pingcap-incubator/minitrace-go"
+    "github.com/tikv/minitrace-go"
     "strconv"
 )
 
@@ -26,6 +26,8 @@ func iterTracedFunc(ctx context.Context) {
     // extend tracing context from parent context
     ctx, span := minitrace.NewSpanWithContext(ctx, "1")
 
+    span.AddProperty("k2", "v2")
+
     for i := 2; i < 10; i++ {
         tracedFunc(ctx, strconv.Itoa(i))
     }
@@ -38,6 +40,8 @@ func main() {
 
     // enable tracing
     ctx, root := minitrace.TraceEnable(ctx, "root", 0)
+
+    root.AddProperty("k1", "v1")
 
     // pass the context to traced functions
     iterTracedFunc(ctx)

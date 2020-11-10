@@ -1,4 +1,4 @@
-module github.com/pingcap-incubator/minitrace-go
+module github.com/tikv/minitrace-go
 
 go 1.13
 

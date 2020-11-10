@@ -18,10 +18,16 @@ type SpanSet struct {
 	Spans       []Span
 }
 
+type Property struct {
+	Key   string
+	Value string
+}
+
 type Span struct {
-	Id      uint32
-	Parent  uint32 // 0 means Root
-	BeginNs uint64
-	EndNs   uint64
-	Event   string
+	Id         uint32
+	Parent     uint32 // 0 means Root
+	BeginNs    uint64
+	EndNs      uint64
+	Event      string
+	Properties []Property
 }

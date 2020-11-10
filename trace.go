@@ -48,7 +48,7 @@ func TraceEnable(ctx context.Context, event string, traceId uint64) (context.Con
 		currentGid: gid.Get(),
 	}
 
-	return spanCtx, TraceHandle{SpanHandle{spanCtx, &s.EndNs}}
+	return spanCtx, TraceHandle{SpanHandle{spanCtx, &s.EndNs, &s.Properties}}
 }
 
 func NewSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
@@ -93,6 +93,7 @@ func NewSpan(ctx context.Context, event string) (res SpanHandle) {
 		res.spanContext.currentId = id
 		res.spanContext.currentGid = goid
 		res.endNs = &slot.EndNs
+		res.properties = &slot.Properties
 	} else {
 		slot := res.spanContext.tracedSpans.spans.slot()
 		slot.Id = id
@@ -104,6 +105,7 @@ func NewSpan(ctx context.Context, event string) (res SpanHandle) {
 		res.spanContext.currentId = id
 		res.spanContext.currentGid = goid
 		res.endNs = &slot.EndNs
+		res.properties = &slot.Properties
 	}
 
 	return
@@ -120,6 +122,11 @@ func CurrentId(ctx context.Context) (spanId uint32, traceId uint64, ok bool) {
 type SpanHandle struct {
 	spanContext spanContext
 	endNs       *uint64
+	properties  *[]Property
+}
+
+func (hd *SpanHandle) AddProperty(key, value string) {
+	*hd.properties = append(*hd.properties, Property{Key: key, Value: value})
 }
 
 // TODO: Prevent users from calling twice
@@ -142,7 +149,7 @@ type TraceHandle struct {
 	SpanHandle
 }
 
-func (hd TraceHandle) Collect() (res []SpanSet) {
+func (hd *TraceHandle) Collect() (res []SpanSet) {
 	hd.SpanHandle.Finish()
 
 	hd.spanContext.tracingContext.mu.Lock()
