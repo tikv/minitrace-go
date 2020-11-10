@@ -25,18 +25,18 @@ import (
 )
 
 func TestJaeger(t *testing.T) {
-    ctx, handle := minitrace.TraceEnable(context.Background(), 0, 10010)
+    ctx, handle := minitrace.TraceEnable(context.Background(), "root", 10010)
     var wg sync.WaitGroup
 
     for i := 1; i < 5; i++ {
-        ctx, handle := minitrace.NewSpanWithContext(ctx, uint32(i))
+        ctx, handle := minitrace.NewSpanWithContext(ctx, strconv.Itoa(i))
         wg.Add(1)
         go func(prefix int) {
-            ctx, handle := minitrace.NewSpanWithContext(ctx, uint32(prefix))
+            ctx, handle := minitrace.NewSpanWithContext(ctx, strconv.Itoa(prefix))
             for i := 0; i < 5; i++ {
                 wg.Add(1)
                 go func(prefix int) {
-                    handle := minitrace.NewSpan(ctx, uint32(prefix))
+                    handle := minitrace.NewSpan(ctx, strconv.Itoa(prefix))
                     handle.Finish()
                     wg.Done()
                 }((prefix + i) * 10)
@@ -52,14 +52,7 @@ func TestJaeger(t *testing.T) {
 
     buf := make([]uint8, 0, 4096)
     rand.Seed(time.Now().UnixNano())
-    ThriftCompactEncode(&buf, "TiDB", rand.Int63(), rand.Int63(), spanSets, func(span *minitrace.Span) SpanInfo {
-        return SpanInfo{
-            SelfId:        int64(span.Id),
-            ParentId:      int64(span.Parent),
-            Ref:           FollowFrom,
-            OperationName: strconv.Itoa(int(span.Event)),
-        }
-    })
+    ThriftCompactEncode(&buf, "TiDB", rand.Int63(), rand.Int63(), spanSets)
 
     if conn, err := net.Dial("udp", "127.0.0.1:6831"); err == nil {
         _, _ = conn.Write(buf)

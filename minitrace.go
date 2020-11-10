@@ -23,5 +23,5 @@ type Span struct {
 	Parent  uint32 // 0 means Root
 	BeginNs uint64
 	EndNs   uint64
-	Event   uint32
+	Event   string
 }

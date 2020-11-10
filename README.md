@@ -13,9 +13,10 @@ import (
     "context"
     "fmt"
     "github.com/pingcap-incubator/minitrace-go"
+    "strconv"
 )
 
-func tracedFunc(ctx context.Context, event uint32) {
+func tracedFunc(ctx context.Context, event string) {
     span := minitrace.NewSpan(ctx, event)
     // code snippet...
     span.Finish()
@@ -23,10 +24,10 @@ func tracedFunc(ctx context.Context, event uint32) {
 
 func iterTracedFunc(ctx context.Context) {
     // extend tracing context from parent context
-    ctx, span := minitrace.NewSpanWithContext(ctx, 1)
+    ctx, span := minitrace.NewSpanWithContext(ctx, "1")
 
     for i := 2; i < 10; i++ {
-        tracedFunc(ctx, uint32(i))
+        tracedFunc(ctx, strconv.Itoa(i))
     }
     
     span.Finish()
@@ -36,7 +37,7 @@ func main() {
     ctx := context.Background()
 
     // enable tracing
-    ctx, root := minitrace.TraceEnable(ctx, 0)
+    ctx, root := minitrace.TraceEnable(ctx, "root", 0)
 
     // pass the context to traced functions
     iterTracedFunc(ctx)
