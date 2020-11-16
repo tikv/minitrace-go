@@ -23,16 +23,16 @@ func nanotime() int64
 //go:linkname walltime runtime.walltime
 func walltime() (sec int64, nsec int32)
 
-// Standard library's `time.Now()` will invoke two syscalls in Linux, one for `CLOCK_REALTIME`,
-// another for `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
+// Standard library's `time.Now()` will invoke two syscalls in Linux. One is `CLOCK_REALTIME` and
+// another is `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
 // time for performance purpose.
 // `nanotime()` is identical to Linux's `clock_gettime(CLOCK_MONOTONIC, &ts)`
 func monotimeNs() uint64 {
 	return uint64(nanotime())
 }
 
-// Standard library's `time.Now()` will invoke two syscalls in Linux, one for `CLOCK_REALTIME`,
-// another for `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
+// Standard library's `time.Now()` will invoke two syscalls in Linux. One is `CLOCK_REALTIME` and
+// aanother is `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
 // time for performance purpose.
 // `realtimeNs()` is identical to Linux's `clock_gettime(CLOCK_REALTIME, &ts)`
 func realtimeNs() uint64 {
