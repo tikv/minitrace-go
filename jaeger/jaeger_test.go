@@ -57,11 +57,11 @@ func TestJaeger(t *testing.T) {
     }
 
     wg.Wait()
-    spanSets := handle.Collect()
+    spans := handle.Collect()
 
     buf := make([]uint8, 0, 4096)
     rand.Seed(time.Now().UnixNano())
-    ThriftCompactEncode(&buf, "TiDB", rand.Int63(), rand.Int63(), spanSets)
+    ThriftCompactEncode(&buf, "TiDB", rand.Int63(), rand.Int63(), spans)
 
     if conn, err := net.Dial("udp", "127.0.0.1:6831"); err == nil {
         _, _ = conn.Write(buf)

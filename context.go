@@ -19,13 +19,23 @@ import (
 	"time"
 )
 
+// A span context embedded into ctx.context
 type spanContext struct {
 	parent context.Context
 
 	tracingContext *tracingContext
-	tracedSpans    *localSpans
-	currentId      uint32
-	currentGid     int64
+
+	// A "goroutine-local" span collection
+	tracedSpans *localSpans
+
+	// Used to build parent-child relation between spans
+	currentSpanId uint32
+
+	// Used to check if the new span is created at another goroutine
+	currentGid int64
+
+	createEpochTimeNs uint64
+	createMonoTimeNs  uint64
 }
 
 type tracingKey struct{}
@@ -54,14 +64,13 @@ func (s spanContext) Value(key interface{}) interface{} {
 
 // Represents a per goroutine buffer
 type localSpans struct {
-	spans        *bufferList
-	createTimeNs uint64
-	refCount     int
+	spans    *bufferList
+	refCount int
 }
 
 type tracingContext struct {
 	traceId uint64
 
 	mu             sync.Mutex
-	collectedSpans []SpanSet
+	collectedSpans []Span
 }

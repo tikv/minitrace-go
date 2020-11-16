@@ -36,7 +36,7 @@ func ThriftCompactEncode(
     serviceName string,
     traceIdHigh int64,
     traceIdLow int64,
-    traceResults []minitrace.SpanSet,
+    spans []minitrace.Span,
 ) {
     *buf = append(*buf, []uint8{
         0x82, 0x81, 0x00, 0x09, 0x65, 0x6d, 0x69, 0x74, 0x42, 0x61, 0x74, 0x63, 0x68, 0x1c, 0x1c,
@@ -48,10 +48,7 @@ func ThriftCompactEncode(
 
     // len of spans
     *buf = append(*buf, 0x19)
-    spanLen := 0
-    for _, result := range traceResults {
-        spanLen += len(result.Spans)
-    }
+    spanLen := len(spans)
     if spanLen < 15 {
         *buf = append(*buf, uint8(spanLen<<4)|12)
     } else {
@@ -59,64 +56,58 @@ func ThriftCompactEncode(
         encodeVarInt(buf, uint64(spanLen))
     }
 
-    for _, traceResult := range traceResults {
-        startNs := traceResult.StartTimeNs
-        anchorNs := traceResult.Spans[0].BeginNs
-        for _, span := range traceResult.Spans {
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(traceIdLow))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(traceIdHigh))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(int64(span.Id)))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
-            *buf = append(*buf, 0x18)
-            encodeBytes(buf, []uint8(span.Event))
+    for _, span := range spans {
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(traceIdLow))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(traceIdHigh))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(int64(span.Id)))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
+        *buf = append(*buf, 0x18)
+        encodeBytes(buf, []uint8(span.Event))
 
-            *buf = append(*buf, []uint8{0x19, 0x1c, 0x15}...)
-            encodeVarInt(buf, uint64(zigzagFromI32(int32(FollowFrom))))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(traceIdLow))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(traceIdHigh))
-            *buf = append(*buf, 0x16)
-            encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
-            *buf = append(*buf, 0x00)
-            *buf = append(*buf, 0x15)
-            *buf = append(*buf, 0x02)
+        *buf = append(*buf, []uint8{0x19, 0x1c, 0x15}...)
+        encodeVarInt(buf, uint64(zigzagFromI32(int32(FollowFrom))))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(traceIdLow))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(traceIdHigh))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(int64(span.Parent)))
+        *buf = append(*buf, 0x00)
+        *buf = append(*buf, 0x15)
+        *buf = append(*buf, 0x02)
 
-            *buf = append(*buf, 0x16)
-            timeStampUs := (startNs + (span.BeginNs - anchorNs)) / 1000
-            encodeVarInt(buf, zigzagFromI64(int64(timeStampUs)))
-            *buf = append(*buf, 0x16)
-            durationUs := (span.EndNs - span.BeginNs) / 1000
-            encodeVarInt(buf, zigzagFromI64(int64(durationUs)))
-            propertiesLen := len(span.Properties)
-            if propertiesLen > 0 {
-                *buf = append(*buf, 0x19)
-                if propertiesLen < 15 {
-                    *buf = append(*buf, uint8((propertiesLen<<4)|12))
-                } else {
-                    *buf = append(*buf, uint8(0b1111_0000|12))
-                    encodeVarInt(buf, uint64(propertiesLen))
-                }
-
-                for _, p := range span.Properties {
-                    *buf = append(*buf, 0x18)
-                    encodeBytes(buf, []byte(p.Key))
-
-                    *buf = append(*buf, 0x15)
-                    *buf = append(*buf, 0x00)
-
-                    *buf = append(*buf, 0x18)
-                    encodeBytes(buf, []byte(p.Value))
-
-                    *buf = append(*buf, 0x00)
-                }
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(int64(span.BeginEpochNs / 1_000)))
+        *buf = append(*buf, 0x16)
+        encodeVarInt(buf, zigzagFromI64(int64(span.DurationNs / 1_000)))
+        propertiesLen := len(span.Properties)
+        if propertiesLen > 0 {
+            *buf = append(*buf, 0x19)
+            if propertiesLen < 15 {
+                *buf = append(*buf, uint8((propertiesLen<<4)|12))
+            } else {
+                *buf = append(*buf, uint8(0b1111_0000|12))
+                encodeVarInt(buf, uint64(propertiesLen))
             }
-            *buf = append(*buf, 0x00)
+
+            for _, p := range span.Properties {
+                *buf = append(*buf, 0x18)
+                encodeBytes(buf, []byte(p.Key))
+
+                *buf = append(*buf, 0x15)
+                *buf = append(*buf, 0x00)
+
+                *buf = append(*buf, 0x18)
+                encodeBytes(buf, []byte(p.Value))
+
+                *buf = append(*buf, 0x00)
+            }
         }
+        *buf = append(*buf, 0x00)
     }
 
     *buf = append(*buf, 0x00)
