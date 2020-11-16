@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 )
 
+// The id 0 have a special semantic. So id should begin from 1.
 var idGen uint32 = 1
 
 // Returns incremental uint32 unique ID.
@@ -34,13 +35,14 @@ func TraceEnable(ctx context.Context, event string, traceId uint64) (context.Con
 	monoNow := monotimeNs()
 	epochNow := realtimeNs()
 
-	// Init a buffer list
+	// Init a buffer list.
 	bl := newBufferList()
-	// Get a span slot to fill
+	// Get a span slot,
 	s := bl.slot()
 
-	// Fill span slot fields
+	// Fill fields of the span slot
 	s.Id = nextId()
+	// Root span doesn't have a parent. Its parent span id is set to 0.
 	s.Parent = 0
 	// Fill a monotonic time for now. After span is finished, it will replace by an epoch time.
 	s.BeginEpochNs = monoNow
@@ -103,17 +105,16 @@ func NewSpan(ctx context.Context, event string) (res SpanHandle) {
 			refCount: 1,
 		}
 	} else {
-		// Fetch a slot from local collection
+		// Fetch a slot from the local collection
 		slot = res.spanContext.tracedSpans.spans.slot()
 
-		// Collection is shared to a new span now so reference count need to update
+		// Collection is shared to a new span now so the reference count need to update.
 		res.spanContext.tracedSpans.refCount += 1
 	}
 
 	slot.Id = id
 	slot.Parent = res.spanContext.currentSpanId
-	// Fill a mono time for now. After span is finished,
-	// it will replace by an epoch time.
+	// Fill a monotonic time for now. After the span is finished, and it will be replaced by an epoch time.
 	slot.BeginEpochNs = monotimeNs()
 	slot.Event = event
 
@@ -148,7 +149,7 @@ func (hd *SpanHandle) AddProperty(key, value string) {
 // TODO: Prevent users from calling twice
 func (hd *SpanHandle) Finish() {
 	if hd.DurationNs != nil {
-		// For now, `BeginEpochNs` is a monotonic time. Here to correct its value to specify semantic.
+		// For now, `BeginEpochNs` is a monotonic time. Here to correct its value to satisfy the semantic.
 		*hd.DurationNs = monotimeNs() - *hd.BeginEpochNs
 		*hd.BeginEpochNs = (*hd.BeginEpochNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createEpochTimeNs
 
