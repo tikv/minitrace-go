@@ -28,10 +28,10 @@ func BenchmarkMiniTrace(b *testing.B) {
 	for i := 10; i < 100001; i *= 10 {
 		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
 			for j := 0; j < b.N; j++ {
-				ctx, handle := TraceEnable(context.Background(), "root", 10086)
+				ctx, handle := StartRootSpan(context.Background(), "root", 10086)
 
 				for k := 1; k < i; k++ {
-					_, handle := NewSpanWithContext(ctx, strconv.Itoa(k))
+					_, handle := StartSpanWithContext(ctx, strconv.Itoa(k))
 					handle.Finish()
 				}
 
@@ -75,22 +75,22 @@ func BenchmarkAppdashTrace(b *testing.B) {
 }
 
 func TestMiniTrace(t *testing.T) {
-	ctx, handle := TraceEnable(context.Background(), "root", 9527)
+	ctx, handle := StartRootSpan(context.Background(), "root", 9527)
 	var wg sync.WaitGroup
 
-	if _, traceId, ok := CurrentId(ctx); !ok || traceId != 9527 {
+	if _, traceId, ok := CurrentSpanId(ctx); !ok || traceId != 9527 {
 		t.Fatalf("Trace id should be %d", traceId)
 	}
 
 	for i := 1; i < 5; i++ {
-		ctx, handle := NewSpanWithContext(ctx, strconv.Itoa(i))
+		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 		wg.Add(1)
 		go func(prefix int) {
-			ctx, handle := NewSpanWithContext(ctx, strconv.Itoa(prefix))
+			ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(prefix))
 			for i := 0; i < 5; i++ {
 				wg.Add(1)
 				go func(prefix int) {
-					handle := NewSpan(ctx, strconv.Itoa(prefix))
+					handle := StartSpan(ctx, strconv.Itoa(prefix))
 					handle.Finish()
 					wg.Done()
 				}((prefix + i) * 10)
