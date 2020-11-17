@@ -25,24 +25,24 @@ import (
 )
 
 func TestJaeger(t *testing.T) {
-    ctx, handle := minitrace.TraceEnable(context.Background(), "root", 10010)
+    ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010)
     handle.AddProperty("event1", "root")
     handle.AddProperty("event2", "root")
     var wg sync.WaitGroup
 
     for i := 1; i < 5; i++ {
-        ctx, handle := minitrace.NewSpanWithContext(ctx, strconv.Itoa(i))
+        ctx, handle := minitrace.StartSpanWithContext(ctx, strconv.Itoa(i))
         handle.AddProperty("event1", strconv.Itoa(i))
         handle.AddProperty("event2", strconv.Itoa(i))
         wg.Add(1)
         go func(prefix int) {
-            ctx, handle := minitrace.NewSpanWithContext(ctx, strconv.Itoa(prefix))
+            ctx, handle := minitrace.StartSpanWithContext(ctx, strconv.Itoa(prefix))
             handle.AddProperty("event1", strconv.Itoa(prefix))
             handle.AddProperty("event2", strconv.Itoa(prefix))
             for i := 0; i < 5; i++ {
                 wg.Add(1)
                 go func(prefix int) {
-                    handle := minitrace.NewSpan(ctx, strconv.Itoa(prefix))
+                    handle := minitrace.StartSpan(ctx, strconv.Itoa(prefix))
                     handle.AddProperty("event1", strconv.Itoa(prefix))
                     handle.AddProperty("event2", strconv.Itoa(prefix))
                     handle.AddProperty("event3", strconv.Itoa(prefix))

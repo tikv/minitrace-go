@@ -17,14 +17,14 @@ import (
 )
 
 func tracedFunc(ctx context.Context, event string) {
-    span := minitrace.NewSpan(ctx, event)
+    span := minitrace.StartSpan(ctx, event)
     // code snippet...
     span.Finish()
 }
 
 func iterTracedFunc(ctx context.Context) {
     // extend tracing context from parent context
-    ctx, span := minitrace.NewSpanWithContext(ctx, "1")
+    ctx, span := minitrace.StartSpanWithContext(ctx, "1")
 
     span.AddProperty("k2", "v2")
 
@@ -39,7 +39,7 @@ func main() {
     ctx := context.Background()
 
     // enable tracing
-    ctx, root := minitrace.TraceEnable(ctx, "root", 0)
+    ctx, root := minitrace.StartRootSpan(ctx, "root", 0)
 
     root.AddProperty("k1", "v1")
 
