@@ -25,16 +25,24 @@ type buffer struct {
 }
 
 type bufferList struct {
-	head *buffer
-	tail *buffer
-	len  int
+	head      *buffer
+	tail      *buffer
+	collected bool
+	len       int
 }
 
 var bufferPool = &sync.Pool{New: func() interface{} { return &buffer{} }}
 
 func newBufferList() *bufferList {
+	// Fetch a help header. It doesn't store any value.
 	n := bufferPool.Get().(*buffer)
-	return &bufferList{n, n, 0}
+
+	return &bufferList{
+		n,
+		n,
+		false,
+		0,
+	}
 }
 
 func (bl *bufferList) slot() *Span {
@@ -51,8 +59,10 @@ func (bl *bufferList) slot() *Span {
 }
 
 func (bl *bufferList) collect() []Span {
-	if bl.len == 0 {
+	if bl.collected {
 		return nil
+	} else {
+		bl.collected = true
 	}
 
 	h := bl.head.next

@@ -99,8 +99,9 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 	goid := gid.Get()
 	var slot *Span
 
-	if goid != res.spanContext.currentGid {
+	if goid != res.spanContext.currentGid || res.spanContext.tracedSpans.spans.collected {
 		// Use "goroutine-local" collection to reduce synchronization overhead.
+		// If a previous processing has collected spans, we should allocate a new collection.
 
 		bl := newBufferList()
 		slot = bl.slot()
