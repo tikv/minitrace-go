@@ -62,12 +62,18 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64) (context.C
 		createMonoTimeNs:  monoNow,
 	}
 
-	return spanCtx, TraceHandle{SpanHandle{spanCtx, &s.BeginEpochNs, &s.DurationNs, &s.Properties}}
+	return spanCtx, TraceHandle{SpanHandle{
+		spanCtx,
+		&s.BeginEpochNs,
+		&s.DurationNs,
+		&s.Properties,
+		false,
+	}}
 }
 
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := StartSpan(ctx, event)
-	if handle.DurationNs != nil {
+	if handle.durationNs != nil {
 		return handle.spanContext, handle
 	}
 	return ctx, handle
@@ -120,8 +126,8 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 
 	res.spanContext.currentSpanId = id
 	res.spanContext.currentGid = goid
-	res.BeginEpochNs = &slot.BeginEpochNs
-	res.DurationNs = &slot.DurationNs
+	res.beginEpochNs = &slot.BeginEpochNs
+	res.durationNs = &slot.DurationNs
 	res.properties = &slot.Properties
 
 	return
@@ -137,21 +143,27 @@ func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool)
 
 type SpanHandle struct {
 	spanContext  spanContext
-	BeginEpochNs *uint64
-	DurationNs   *uint64
+	beginEpochNs *uint64
+	durationNs   *uint64
 	properties   *[]Property
+	finished     bool
 }
 
 func (hd *SpanHandle) AddProperty(key, value string) {
 	*hd.properties = append(*hd.properties, Property{Key: key, Value: value})
 }
 
-// TODO: Prevent users from calling twice
 func (hd *SpanHandle) Finish() {
-	if hd.DurationNs != nil {
-		// For now, `BeginEpochNs` is a monotonic time. Here to correct its value to satisfy the semantic.
-		*hd.DurationNs = monotimeNs() - *hd.BeginEpochNs
-		*hd.BeginEpochNs = (*hd.BeginEpochNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createEpochTimeNs
+	if hd.finished {
+		return
+	} else {
+		hd.finished = true
+	}
+
+	if hd.durationNs != nil {
+		// For now, `beginEpochNs` is a monotonic time. Here to correct its value to satisfy the semantic.
+		*hd.durationNs = monotimeNs() - *hd.beginEpochNs
+		*hd.beginEpochNs = (*hd.beginEpochNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createEpochTimeNs
 
 		hd.spanContext.tracedSpans.refCount -= 1
 		if hd.spanContext.tracedSpans.refCount == 0 {
@@ -160,6 +172,10 @@ func (hd *SpanHandle) Finish() {
 			hd.spanContext.tracingContext.mu.Unlock()
 		}
 	}
+}
+
+func (hd *SpanHandle) TraceId() uint64 {
+	return hd.spanContext.tracingContext.traceId
 }
 
 type TraceHandle struct {
