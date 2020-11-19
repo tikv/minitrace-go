@@ -73,4 +73,6 @@ type tracingContext struct {
 
 	mu             sync.Mutex
 	collectedSpans []Span
+	attachment     interface{}
+	collected      bool
 }
