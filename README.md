@@ -39,17 +39,17 @@ func main() {
     ctx := context.Background()
 
     // enable tracing
-    ctx, root := minitrace.StartRootSpan(ctx, "root", 0)
+    ctx, root := minitrace.StartRootSpan(ctx, "root", 0, nil)
 
     root.AddProperty("k1", "v1")
 
     // pass the context to traced functions
     iterTracedFunc(ctx)
 
-    // collect tracing results into `spanSets`
-    spanSets := root.Collect()
+    // collect tracing results into `spans`
+    spans, _ := root.Collect()
 
-    // do something with `spanSets`
-    fmt.Printf("%+v", spanSets)
+    // do something with `spans`
+    fmt.Printf("%+v", spans)
 }
 ```

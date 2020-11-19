@@ -14,12 +14,12 @@
 package minitrace
 
 type Span struct {
-	Id           uint32
-	Parent       uint32 // 0 means Root
-	BeginEpochNs uint64
-	DurationNs   uint64
-	Event        string
-	Properties   []Property
+	Id              uint32
+	Parent          uint32 // 0 means Root
+	BeginUnixTimeNs uint64
+	DurationNs      uint64
+	Event           string
+	Properties      []Property
 }
 
 type Property struct {

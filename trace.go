@@ -34,7 +34,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 	}
 
 	monoNow := monotimeNs()
-	epochNow := realtimeNs()
+	unixNow := unixtimeNs()
 
 	// Init a buffer list.
 	bl := newBufferList()
@@ -45,8 +45,8 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 	s.Id = nextId()
 	// Root span doesn't have a parent. Its parent span id is set to 0.
 	s.Parent = 0
-	// Fill a monotonic time for now. After span is finished, it will replace by an epoch time.
-	s.BeginEpochNs = monoNow
+	// Fill a monotonic time for now. After span is finished, it will replace by a unix time.
+	s.BeginUnixTimeNs = monoNow
 	s.Event = event
 
 	spanCtx := spanContext{
@@ -59,13 +59,13 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 		currentSpanId: s.Id,
 		currentGid:    gid.Get(),
 
-		createEpochTimeNs: epochNow,
-		createMonoTimeNs:  monoNow,
+		createUnixTimeNs: unixNow,
+		createMonoTimeNs: monoNow,
 	}
 
 	return spanCtx, TraceHandle{SpanHandle{
 		spanCtx,
-		&s.BeginEpochNs,
+		&s.BeginUnixTimeNs,
 		&s.DurationNs,
 		&s.Properties,
 		false,
@@ -91,7 +91,7 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 		res.spanContext.currentGid = s.currentGid
 		res.spanContext.currentSpanId = s.currentSpanId
 		res.spanContext.createMonoTimeNs = s.createMonoTimeNs
-		res.spanContext.createEpochTimeNs = s.createEpochTimeNs
+		res.spanContext.createUnixTimeNs = s.createUnixTimeNs
 	} else {
 		return
 	}
@@ -122,13 +122,13 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 
 	slot.Id = id
 	slot.Parent = res.spanContext.currentSpanId
-	// Fill a monotonic time for now. After the span is finished, and it will be replaced by an epoch time.
-	slot.BeginEpochNs = monotimeNs()
+	// Fill a monotonic time for now. After the span is finished, and it will be replaced by a unix time.
+	slot.BeginUnixTimeNs = monotimeNs()
 	slot.Event = event
 
 	res.spanContext.currentSpanId = id
 	res.spanContext.currentGid = goid
-	res.beginEpochNs = &slot.BeginEpochNs
+	res.beginUnixTimeNs = &slot.BeginUnixTimeNs
 	res.durationNs = &slot.DurationNs
 	res.properties = &slot.Properties
 
@@ -144,11 +144,11 @@ func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool)
 }
 
 type SpanHandle struct {
-	spanContext  spanContext
-	beginEpochNs *uint64
-	durationNs   *uint64
-	properties   *[]Property
-	finished     bool
+	spanContext     spanContext
+	beginUnixTimeNs *uint64
+	durationNs      *uint64
+	properties      *[]Property
+	finished        bool
 }
 
 func (hd *SpanHandle) AddProperty(key, value string) {
@@ -171,9 +171,9 @@ func (hd *SpanHandle) Finish() {
 	}
 
 	if hd.durationNs != nil {
-		// For now, `beginEpochNs` is a monotonic time. Here to correct its value to satisfy the semantic.
-		*hd.durationNs = monotimeNs() - *hd.beginEpochNs
-		*hd.beginEpochNs = (*hd.beginEpochNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createEpochTimeNs
+		// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
+		*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
+		*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createUnixTimeNs
 
 		hd.spanContext.tracedSpans.refCount -= 1
 		if hd.spanContext.tracedSpans.refCount == 0 {
