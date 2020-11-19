@@ -28,14 +28,14 @@ func BenchmarkMiniTrace(b *testing.B) {
 	for i := 10; i < 100001; i *= 10 {
 		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
 			for j := 0; j < b.N; j++ {
-				ctx, handle := StartRootSpan(context.Background(), "root", 10086)
+				ctx, handle := StartRootSpan(context.Background(), "root", 10086, nil)
 
 				for k := 1; k < i; k++ {
 					_, handle := StartSpanWithContext(ctx, strconv.Itoa(k))
 					handle.Finish()
 				}
 
-				spans := handle.Collect()
+				spans, _ := handle.Collect()
 				if i != len(spans) {
 					b.Fatalf("expected length %d, got %d", i, len(spans))
 				}
@@ -75,7 +75,7 @@ func BenchmarkAppdashTrace(b *testing.B) {
 }
 
 func TestMiniTrace(t *testing.T) {
-	ctx, handle := StartRootSpan(context.Background(), "root", 9527)
+	ctx, handle := StartRootSpan(context.Background(), "root", 9527, nil)
 	var wg sync.WaitGroup
 
 	if _, traceId, ok := CurrentSpanId(ctx); !ok || traceId != 9527 {
@@ -102,7 +102,7 @@ func TestMiniTrace(t *testing.T) {
 	}
 
 	wg.Wait()
-	spans := handle.Collect()
+	spans, _ := handle.Collect()
 	if len(spans) != 29 {
 		t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spans))
 	}

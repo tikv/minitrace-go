@@ -27,9 +27,10 @@ func nextId() uint32 {
 	return atomic.AddUint32(&idGen, 1)
 }
 
-func StartRootSpan(ctx context.Context, event string, traceId uint64) (context.Context, TraceHandle) {
+func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment interface{}) (context.Context, TraceHandle) {
 	tCtx := &tracingContext{
-		traceId: traceId,
+		traceId:    traceId,
+		attachment: attachment,
 	}
 
 	monoNow := monotimeNs()
@@ -154,6 +155,14 @@ func (hd *SpanHandle) AddProperty(key, value string) {
 	*hd.properties = append(*hd.properties, Property{Key: key, Value: value})
 }
 
+func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
+	hd.spanContext.tracingContext.mu.Lock()
+	if !hd.spanContext.tracingContext.collected {
+		fn(hd.spanContext.tracingContext.attachment)
+	}
+	hd.spanContext.tracingContext.mu.Unlock()
+}
+
 func (hd *SpanHandle) Finish() {
 	if hd.finished {
 		return
@@ -169,7 +178,9 @@ func (hd *SpanHandle) Finish() {
 		hd.spanContext.tracedSpans.refCount -= 1
 		if hd.spanContext.tracedSpans.refCount == 0 {
 			hd.spanContext.tracingContext.mu.Lock()
-			hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, hd.spanContext.tracedSpans.spans.collect()...)
+			if !hd.spanContext.tracingContext.collected {
+				hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, hd.spanContext.tracedSpans.spans.collect()...)
+			}
 			hd.spanContext.tracingContext.mu.Unlock()
 		}
 	}
@@ -183,12 +194,17 @@ type TraceHandle struct {
 	SpanHandle
 }
 
-func (hd *TraceHandle) Collect() (res []Span) {
+func (hd *TraceHandle) Collect() (spans []Span, attachment interface{}) {
 	hd.SpanHandle.Finish()
 
 	hd.spanContext.tracingContext.mu.Lock()
-	res = hd.spanContext.tracingContext.collectedSpans
-	hd.spanContext.tracingContext.collectedSpans = nil
+
+	if !hd.spanContext.tracingContext.collected {
+		spans = hd.spanContext.tracingContext.collectedSpans
+		attachment = hd.spanContext.tracingContext.attachment
+	}
+	hd.spanContext.tracingContext.collected = true
+
 	hd.spanContext.tracingContext.mu.Unlock()
 
 	return
