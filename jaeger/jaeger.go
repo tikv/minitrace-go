@@ -81,7 +81,7 @@ func ThriftCompactEncode(
 		*buf = append(*buf, 0x02)
 
 		*buf = append(*buf, 0x16)
-		encodeVarInt(buf, zigzagFromI64(int64(span.BeginEpochNs/1_000)))
+		encodeVarInt(buf, zigzagFromI64(int64(span.BeginUnixTimeNs/1_000)))
 		*buf = append(*buf, 0x16)
 		encodeVarInt(buf, zigzagFromI64(int64(span.DurationNs/1_000)))
 		propertiesLen := len(span.Properties)

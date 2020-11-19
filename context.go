@@ -34,8 +34,8 @@ type spanContext struct {
 	// Used to check if the new span is created at another goroutine
 	currentGid int64
 
-	createEpochTimeNs uint64
-	createMonoTimeNs  uint64
+	createUnixTimeNs uint64
+	createMonoTimeNs uint64
 }
 
 type tracingKey struct{}
