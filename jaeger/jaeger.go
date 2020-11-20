@@ -17,20 +17,6 @@ import (
 	"github.com/tikv/minitrace-go"
 )
 
-type ReferenceType int32
-
-const (
-	ChildOf    ReferenceType = 0
-	FollowFrom ReferenceType = 1
-)
-
-type SpanInfo struct {
-	SelfId        int64
-	ParentId      int64
-	Ref           ReferenceType
-	OperationName string
-}
-
 func ThriftCompactEncode(
 	buf *[]uint8,
 	serviceName string,
@@ -69,7 +55,7 @@ func ThriftCompactEncode(
 		encodeBytes(buf, []uint8(span.Event))
 
 		*buf = append(*buf, []uint8{0x19, 0x1c, 0x15}...)
-		encodeVarInt(buf, uint64(zigzagFromI32(int32(FollowFrom))))
+		encodeVarInt(buf, uint64(zigzagFromI32(int32(1 /* Follow from */))))
 		*buf = append(*buf, 0x16)
 		encodeVarInt(buf, zigzagFromI64(traceIdLow))
 		*buf = append(*buf, 0x16)

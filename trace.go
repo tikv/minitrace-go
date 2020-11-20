@@ -74,7 +74,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := StartSpan(ctx, event)
-	if handle.durationNs != nil {
+	if !handle.finished {
 		return handle.spanContext, handle
 	}
 	return ctx, handle
@@ -93,6 +93,7 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 		res.spanContext.createMonoTimeNs = s.createMonoTimeNs
 		res.spanContext.createUnixTimeNs = s.createUnixTimeNs
 	} else {
+		res.finished = true
 		return
 	}
 
@@ -136,7 +137,9 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 }
 
 func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool) {
-	if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
+	if s, ok := ctx.(spanContext); ok {
+		return s.currentSpanId, s.tracingContext.traceId, ok
+	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
 		return s.currentSpanId, s.tracingContext.traceId, ok
 	}
 
@@ -152,10 +155,18 @@ type SpanHandle struct {
 }
 
 func (hd *SpanHandle) AddProperty(key, value string) {
+	if hd.finished {
+		return
+	}
+
 	*hd.properties = append(*hd.properties, Property{Key: key, Value: value})
 }
 
 func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
+	if hd.finished {
+		return
+	}
+
 	hd.spanContext.tracingContext.mu.Lock()
 	if !hd.spanContext.tracingContext.collected {
 		fn(hd.spanContext.tracingContext.attachment)
@@ -166,23 +177,21 @@ func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
 func (hd *SpanHandle) Finish() {
 	if hd.finished {
 		return
-	} else {
-		hd.finished = true
 	}
 
-	if hd.durationNs != nil {
-		// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
-		*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
-		*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createUnixTimeNs
+	hd.finished = true
 
-		hd.spanContext.tracedSpans.refCount -= 1
-		if hd.spanContext.tracedSpans.refCount == 0 {
-			hd.spanContext.tracingContext.mu.Lock()
-			if !hd.spanContext.tracingContext.collected {
-				hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, hd.spanContext.tracedSpans.spans.collect()...)
-			}
-			hd.spanContext.tracingContext.mu.Unlock()
+	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
+	*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
+	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createUnixTimeNs
+
+	hd.spanContext.tracedSpans.refCount -= 1
+	if hd.spanContext.tracedSpans.refCount == 0 {
+		hd.spanContext.tracingContext.mu.Lock()
+		if !hd.spanContext.tracingContext.collected {
+			hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, hd.spanContext.tracedSpans.spans.collect()...)
 		}
+		hd.spanContext.tracingContext.mu.Unlock()
 	}
 }
 
