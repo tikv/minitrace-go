@@ -74,7 +74,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := StartSpan(ctx, event)
-	if handle.durationNs != nil {
+	if !handle.finished {
 		return handle.spanContext, handle
 	}
 	return ctx, handle
@@ -93,6 +93,7 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 		res.spanContext.createMonoTimeNs = s.createMonoTimeNs
 		res.spanContext.createUnixTimeNs = s.createUnixTimeNs
 	} else {
+		res.finished = true
 		return
 	}
 
@@ -154,7 +155,7 @@ type SpanHandle struct {
 }
 
 func (hd *SpanHandle) AddProperty(key, value string) {
-	if hd.finished || hd.beginUnixTimeNs == nil {
+	if hd.finished {
 		return
 	}
 
@@ -162,7 +163,7 @@ func (hd *SpanHandle) AddProperty(key, value string) {
 }
 
 func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
-	if hd.finished || hd.beginUnixTimeNs == nil {
+	if hd.finished {
 		return
 	}
 
@@ -174,11 +175,11 @@ func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
 }
 
 func (hd *SpanHandle) Finish() {
-	defer func() { hd.finished = true }()
-
-	if hd.finished || hd.durationNs == nil {
+	if hd.finished {
 		return
 	}
+
+	hd.finished = true
 
 	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
 	*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
