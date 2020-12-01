@@ -23,7 +23,7 @@ import (
 )
 
 func Send(buf io.Reader, agent string) error {
-    req, err := http.NewRequest("POST",  fmt.Sprintf("http://%s/v0.4/traces", agent), buf)
+    req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", agent), buf)
     if err != nil {
         return fmt.Errorf("cannot create http request: %v", err)
     }

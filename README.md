@@ -12,8 +12,9 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/tikv/minitrace-go"
     "strconv"
+
+    "github.com/tikv/minitrace-go"
 )
 
 func tracedFunc(ctx context.Context, event string) {

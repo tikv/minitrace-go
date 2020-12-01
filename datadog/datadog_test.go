@@ -14,58 +14,58 @@
 package datadog
 
 import (
-	"bytes"
-	"context"
-	"fmt"
-	"math/rand"
-	"sync"
-	"testing"
-	"time"
+    "bytes"
+    "context"
+    "fmt"
+    "math/rand"
+    "sync"
+    "testing"
+    "time"
 
-	"github.com/tikv/minitrace-go"
+    "github.com/tikv/minitrace-go"
 )
 
 func TestDatadog(t *testing.T) {
-	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
-	handle.AddProperty("event1", "root")
-	handle.AddProperty("event2", "root")
-	var wg sync.WaitGroup
+    ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
+    handle.AddProperty("event1", "root")
+    handle.AddProperty("event2", "root")
+    var wg sync.WaitGroup
 
-	for i := 1; i < 5; i++ {
-		ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", i))
-		handle.AddProperty("event1", fmt.Sprintf("span%d", i))
-		handle.AddProperty("event2", fmt.Sprintf("span%d", i))
-		wg.Add(1)
-		go func(prefix int) {
-			ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", prefix))
-			handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
-			handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
-			for i := 0; i < 5; i++ {
-				wg.Add(1)
-				go func(prefix int) {
-					handle := minitrace.StartSpan(ctx, fmt.Sprintf("span%d", prefix))
-					handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
-					handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
-					handle.AddProperty("event3", fmt.Sprintf("span%d", prefix))
-					handle.Finish()
-					wg.Done()
-				}((prefix + i) * 10)
-			}
-			handle.Finish()
-			wg.Done()
-		}(i * 10)
-		handle.Finish()
-	}
+    for i := 1; i < 5; i++ {
+        ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", i))
+        handle.AddProperty("event1", fmt.Sprintf("span%d", i))
+        handle.AddProperty("event2", fmt.Sprintf("span%d", i))
+        wg.Add(1)
+        go func(prefix int) {
+            ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", prefix))
+            handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
+            handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
+            for i := 0; i < 5; i++ {
+                wg.Add(1)
+                go func(prefix int) {
+                    handle := minitrace.StartSpan(ctx, fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event3", fmt.Sprintf("span%d", prefix))
+                    handle.Finish()
+                    wg.Done()
+                }((prefix + i) * 10)
+            }
+            handle.Finish()
+            wg.Done()
+        }(i * 10)
+        handle.Finish()
+    }
 
-	wg.Wait()
-	spans, _ := handle.Collect()
+    wg.Wait()
+    spans, _ := handle.Collect()
 
-	rand.Seed(time.Now().UnixNano())
+    rand.Seed(time.Now().UnixNano())
 
-	buf := bytes.NewBuffer([]byte{})
-	if err := MessagePackEncode(buf, "datadog-test", rand.Uint64(), rand.Uint32(), spans); err == nil {
-		_ = Send(buf, "127.0.0.1:8126")
-	} else {
-		t.Fatal(err)
-	}
+    buf := bytes.NewBuffer([]byte{})
+    if err := MessagePackEncode(buf, "datadog-test", rand.Uint64(), rand.Uint32(), spans); err == nil {
+        _ = Send(buf, "127.0.0.1:8126")
+    } else {
+        t.Fatal(err)
+    }
 }

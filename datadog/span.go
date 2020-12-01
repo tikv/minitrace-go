@@ -29,14 +29,14 @@ type (
 )
 
 type Span struct {
-    Name     string             `msg:"name"`
-    Service  string             `msg:"service"`
-    Start    int64              `msg:"start"`
-    Duration int64              `msg:"duration"`
-    Meta     map[string]string  `msg:"meta,omitempty"`
-    SpanID   uint64             `msg:"span_id"`
-    TraceID  uint64             `msg:"trace_id"`
-    ParentID uint64             `msg:"parent_id"`
+    Name     string            `msg:"name"`
+    Service  string            `msg:"service"`
+    Start    int64             `msg:"start"`
+    Duration int64             `msg:"duration"`
+    Meta     map[string]string `msg:"meta,omitempty"`
+    SpanID   uint64            `msg:"span_id"`
+    TraceID  uint64            `msg:"trace_id"`
+    ParentID uint64            `msg:"parent_id"`
 }
 
 func miniSpansToDdSpanList(
