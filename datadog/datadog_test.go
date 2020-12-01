@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jaeger
+package datadog
 
 import (
     "bytes"
@@ -25,7 +25,7 @@ import (
     "github.com/tikv/minitrace-go"
 )
 
-func TestJaeger(t *testing.T) {
+func TestDatadog(t *testing.T) {
     ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
     handle.AddProperty("event1", "root")
     handle.AddProperty("event2", "root")
@@ -60,9 +60,12 @@ func TestJaeger(t *testing.T) {
     wg.Wait()
     spans, _ := handle.Collect()
 
-    buf := bytes.NewBuffer(make([]uint8, 0, 4096))
     rand.Seed(time.Now().UnixNano())
-    if err := ThriftCompactEncode(buf, "minitrace-test", rand.Int63(), rand.Int63(), rand.Uint32(), spans); err == nil {
-        _ = Send(buf.Bytes(), "127.0.0.1:6831")
+
+    buf := bytes.NewBuffer([]byte{})
+    if err := MessagePackEncode(buf, "datadog-test", rand.Uint64(), rand.Uint32(), spans); err == nil {
+        _ = Send(buf, "127.0.0.1:8126")
+    } else {
+        t.Fatal(err)
     }
 }
