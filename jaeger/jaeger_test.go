@@ -14,56 +14,55 @@
 package jaeger
 
 import (
-	"context"
-	"github.com/tikv/minitrace-go"
-	"math/rand"
-	"net"
-	"strconv"
-	"sync"
-	"testing"
-	"time"
+    "bytes"
+    "context"
+    "fmt"
+    "math/rand"
+    "sync"
+    "testing"
+    "time"
+
+    "github.com/tikv/minitrace-go"
 )
 
 func TestJaeger(t *testing.T) {
-	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
-	handle.AddProperty("event1", "root")
-	handle.AddProperty("event2", "root")
-	var wg sync.WaitGroup
+    ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
+    handle.AddProperty("event1", "root")
+    handle.AddProperty("event2", "root")
+    var wg sync.WaitGroup
 
-	for i := 1; i < 5; i++ {
-		ctx, handle := minitrace.StartSpanWithContext(ctx, strconv.Itoa(i))
-		handle.AddProperty("event1", strconv.Itoa(i))
-		handle.AddProperty("event2", strconv.Itoa(i))
-		wg.Add(1)
-		go func(prefix int) {
-			ctx, handle := minitrace.StartSpanWithContext(ctx, strconv.Itoa(prefix))
-			handle.AddProperty("event1", strconv.Itoa(prefix))
-			handle.AddProperty("event2", strconv.Itoa(prefix))
-			for i := 0; i < 5; i++ {
-				wg.Add(1)
-				go func(prefix int) {
-					handle := minitrace.StartSpan(ctx, strconv.Itoa(prefix))
-					handle.AddProperty("event1", strconv.Itoa(prefix))
-					handle.AddProperty("event2", strconv.Itoa(prefix))
-					handle.AddProperty("event3", strconv.Itoa(prefix))
-					handle.Finish()
-					wg.Done()
-				}((prefix + i) * 10)
-			}
-			handle.Finish()
-			wg.Done()
-		}(i * 10)
-		handle.Finish()
-	}
+    for i := 1; i < 5; i++ {
+        ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", i))
+        handle.AddProperty("event1", fmt.Sprintf("span%d", i))
+        handle.AddProperty("event2", fmt.Sprintf("span%d", i))
+        wg.Add(1)
+        go func(prefix int) {
+            ctx, handle := minitrace.StartSpanWithContext(ctx, fmt.Sprintf("span%d", prefix))
+            handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
+            handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
+            for i := 0; i < 5; i++ {
+                wg.Add(1)
+                go func(prefix int) {
+                    handle := minitrace.StartSpan(ctx, fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event1", fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event2", fmt.Sprintf("span%d", prefix))
+                    handle.AddProperty("event3", fmt.Sprintf("span%d", prefix))
+                    handle.Finish()
+                    wg.Done()
+                }((prefix + i) * 10)
+            }
+            handle.Finish()
+            wg.Done()
+        }(i * 10)
+        handle.Finish()
+    }
 
-	wg.Wait()
-	spans, _ := handle.Collect()
+    wg.Wait()
+    spans, _ := handle.Collect()
 
-	buf := make([]uint8, 0, 4096)
-	rand.Seed(time.Now().UnixNano())
-	ThriftCompactEncode(&buf, "TiDB", rand.Int63(), rand.Int63(), spans)
-
-	if conn, err := net.Dial("udp", "127.0.0.1:6831"); err == nil {
-		_, _ = conn.Write(buf)
-	}
+    buf := bytes.NewBuffer(make([]uint8, 0, 4096))
+    rand.Seed(time.Now().UnixNano())
+    if err := ThriftCompactEncode(buf, "minitrace-test", rand.Int63(), rand.Int63(), rand.Uint32(), spans); err == nil {
+        _ = Send(buf.Bytes(), "127.0.0.1:6831")
+    }
 }
