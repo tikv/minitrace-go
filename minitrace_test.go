@@ -14,119 +14,119 @@
 package minitrace
 
 import (
-    "context"
-    "fmt"
-    "strconv"
-    "sync"
-    "testing"
+	"context"
+	"fmt"
+	"strconv"
+	"sync"
+	"testing"
 
-    "github.com/opentracing/opentracing-go"
-    "sourcegraph.com/sourcegraph/appdash"
-    traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
+	"github.com/opentracing/opentracing-go"
+	"sourcegraph.com/sourcegraph/appdash"
+	traceImpl "sourcegraph.com/sourcegraph/appdash/opentracing"
 )
 
 func BenchmarkMiniTrace(b *testing.B) {
-    for i := 10; i < 100001; i *= 10 {
-        b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
-            for j := 0; j < b.N; j++ {
-                ctx, handle := StartRootSpan(context.Background(), "root", 10086, nil)
+	for i := 10; i < 100001; i *= 10 {
+		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
+			for j := 0; j < b.N; j++ {
+				ctx, handle := StartRootSpan(context.Background(), "root", 10086, nil)
 
-                for k := 1; k < i; k++ {
-                    _, handle := StartSpanWithContext(ctx, strconv.Itoa(k))
-                    handle.Finish()
-                }
+				for k := 1; k < i; k++ {
+					_, handle := StartSpanWithContext(ctx, strconv.Itoa(k))
+					handle.Finish()
+				}
 
-                spans, _ := handle.Collect()
-                if i != len(spans) {
-                    b.Fatalf("expected length %d, got %d", i, len(spans))
-                }
-            }
-        })
-    }
+				spans, _ := handle.Collect()
+				if i != len(spans) {
+					b.Fatalf("expected length %d, got %d", i, len(spans))
+				}
+			}
+		})
+	}
 }
 
 func BenchmarkAppdashTrace(b *testing.B) {
-    for i := 10; i < 10_001; i *= 10 {
-        b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
-            for j := 0; j < b.N; j++ {
-                store := appdash.NewMemoryStore()
-                tracer := traceImpl.NewTracer(store)
-                span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
+	for i := 10; i < 10_001; i *= 10 {
+		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			for j := 0; j < b.N; j++ {
+				store := appdash.NewMemoryStore()
+				tracer := traceImpl.NewTracer(store)
+				span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
 
-                for k := 1; k < i; k++ {
-                    if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-                        span, _ := opentracing.StartSpanFromContextWithTracer(ctx, span.Tracer(), "child", opentracing.ChildOf(span.Context()))
-                        span.Finish()
-                    }
-                }
+				for k := 1; k < i; k++ {
+					if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
+						span, _ := opentracing.StartSpanFromContextWithTracer(ctx, span.Tracer(), "child", opentracing.ChildOf(span.Context()))
+						span.Finish()
+					}
+				}
 
-                span.Finish()
+				span.Finish()
 
-                traces, err := store.Traces(appdash.TracesOpts{})
-                if err != nil {
-                    b.Fatal(err)
-                }
+				traces, err := store.Traces(appdash.TracesOpts{})
+				if err != nil {
+					b.Fatal(err)
+				}
 
-                if i != len(traces[0].Sub)+1 {
-                    b.Fatalf("expected length %d, got %d", i, len(traces[0].Sub)+1)
-                }
-            }
-        })
-    }
+				if i != len(traces[0].Sub)+1 {
+					b.Fatalf("expected length %d, got %d", i, len(traces[0].Sub)+1)
+				}
+			}
+		})
+	}
 }
 
 func TestMiniTrace(t *testing.T) {
-    var traceId uint64 = 9527
-    ctx, handle := StartRootSpan(context.Background(), "root", traceId, nil)
-    var wg sync.WaitGroup
+	var traceId uint64 = 9527
+	ctx, handle := StartRootSpan(context.Background(), "root", traceId, nil)
+	var wg sync.WaitGroup
 
-    if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
-        spanId := handle.spanContext.currentSpanId
-        if spanId != spanId1 {
-            t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
-        }
-        if traceId != traceId1 {
-            t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
-        }
-    } else {
-        t.Fatalf("cannot get current span ID")
-    }
+	if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
+		spanId := handle.spanContext.currentSpanId
+		if spanId != spanId1 {
+			t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
+		}
+		if traceId != traceId1 {
+			t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
+		}
+	} else {
+		t.Fatalf("cannot get current span ID")
+	}
 
-    for i := 1; i < 5; i++ {
-        ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
+	for i := 1; i < 5; i++ {
+		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 
-        if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
-            spanId := handle.spanContext.currentSpanId
-            if spanId != spanId1 {
-                t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
-            }
-            if traceId != traceId1 {
-                t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
-            }
-        } else {
-            t.Fatalf("cannot get current span ID")
-        }
+		if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
+			spanId := handle.spanContext.currentSpanId
+			if spanId != spanId1 {
+				t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
+			}
+			if traceId != traceId1 {
+				t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
+			}
+		} else {
+			t.Fatalf("cannot get current span ID")
+		}
 
-        wg.Add(1)
-        go func(prefix int) {
-            ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(prefix))
-            for i := 0; i < 5; i++ {
-                wg.Add(1)
-                go func(prefix int) {
-                    handle := StartSpan(ctx, strconv.Itoa(prefix))
-                    handle.Finish()
-                    wg.Done()
-                }((prefix + i) * 10)
-            }
-            handle.Finish()
-            wg.Done()
-        }(i * 10)
-        handle.Finish()
-    }
+		wg.Add(1)
+		go func(prefix int) {
+			ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(prefix))
+			for i := 0; i < 5; i++ {
+				wg.Add(1)
+				go func(prefix int) {
+					handle := StartSpan(ctx, strconv.Itoa(prefix))
+					handle.Finish()
+					wg.Done()
+				}((prefix + i) * 10)
+			}
+			handle.Finish()
+			wg.Done()
+		}(i * 10)
+		handle.Finish()
+	}
 
-    wg.Wait()
-    spans, _ := handle.Collect()
-    if len(spans) != 29 {
-        t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spans))
-    }
+	wg.Wait()
+	spans, _ := handle.Collect()
+	if len(spans) != 29 {
+		t.Fatalf("length of spanSets expected %d, but got %d", 25, len(spans))
+	}
 }

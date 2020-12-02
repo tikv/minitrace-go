@@ -11,18 +11,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package minitrace
+package jaeger
 
 type Span struct {
-	ID              uint32
-	ParentID        uint32 // 0 means Root
-	BeginUnixTimeNs uint64
-	DurationNs      uint64
-	Event           string
-	Properties      []Property
+	SpanID          int64
+	ParentID        int64
+	StartUnixTimeUs int64
+	DurationUs      int64
+	OperationName   string
+	Tags            []struct {
+		Key   string
+		Value string
+	}
 }
 
-type Property struct {
-	Key   string
-	Value string
+type Trace struct {
+	TraceID     int64
+	ServiceName string
+	Spans       []Span
 }
