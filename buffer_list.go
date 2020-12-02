@@ -14,79 +14,79 @@
 package minitrace
 
 import (
-    "sync"
+	"sync"
 )
 
 const POW = 8
 
 type buffer struct {
-    array [1 << POW]Span
-    next  *buffer
+	array [1 << POW]Span
+	next  *buffer
 }
 
 type bufferList struct {
-    head      *buffer
-    tail      *buffer
-    collected bool
-    len       int
+	head      *buffer
+	tail      *buffer
+	collected bool
+	len       int
 }
 
 var bufferPool = &sync.Pool{New: func() interface{} { return &buffer{} }}
 
 func newBufferList() *bufferList {
-    // Fetch a help header. It doesn't store any value.
-    n := bufferPool.Get().(*buffer)
+	// Fetch a help header. It doesn't store any value.
+	n := bufferPool.Get().(*buffer)
 
-    return &bufferList{
-        n,
-        n,
-        false,
-        0,
-    }
+	return &bufferList{
+		n,
+		n,
+		false,
+		0,
+	}
 }
 
 func (bl *bufferList) slot() *Span {
-    idx := bl.len & ((1 << POW) - 1)
-    if idx == 0 {
-        n := bufferPool.Get().(*buffer)
+	idx := bl.len & ((1 << POW) - 1)
+	if idx == 0 {
+		n := bufferPool.Get().(*buffer)
 
-        bl.tail.next = n
-        bl.tail = n
-    }
+		bl.tail.next = n
+		bl.tail = n
+	}
 
-    bl.len += 1
-    return &bl.tail.array[idx]
+	bl.len += 1
+	return &bl.tail.array[idx]
 }
 
 func (bl *bufferList) collect() []Span {
-    if bl.collected {
-        return nil
-    } else {
-        bl.collected = true
-    }
+	if bl.collected {
+		return nil
+	} else {
+		bl.collected = true
+	}
 
-    h := bl.head.next
-    bufferPool.Put(bl.head)
-    bl.head = nil
+	h := bl.head.next
+	bufferPool.Put(bl.head)
+	bl.head = nil
 
-    res := make([]Span, bl.len, bl.len)
+	res := make([]Span, bl.len, bl.len)
 
-    remainingLen := bl.len
-    sizePerBuffer := 1 << POW
-    for remainingLen > sizePerBuffer {
-        cursor := bl.len - remainingLen
-        copy(res[cursor:cursor+sizePerBuffer], h.array[:])
-        h.array = [256]Span{}
-        remainingLen -= sizePerBuffer
-        n := h.next
-        bufferPool.Put(h)
-        h = n
-    }
+	remainingLen := bl.len
+	sizePerBuffer := 1 << POW
+	for remainingLen > sizePerBuffer {
+		cursor := bl.len - remainingLen
+		copy(res[cursor:cursor+sizePerBuffer], h.array[:])
+		h.array = [256]Span{}
+		remainingLen -= sizePerBuffer
+		n := h.next
+		bufferPool.Put(h)
+		h = n
+	}
 
-    cursor := bl.len - remainingLen
-    copy(res[cursor:], h.array[:remainingLen])
-    h.array = [256]Span{}
-    bufferPool.Put(h)
+	cursor := bl.len - remainingLen
+	copy(res[cursor:], h.array[:remainingLen])
+	h.array = [256]Span{}
+	bufferPool.Put(h)
 
-    return res
+	return res
 }

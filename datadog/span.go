@@ -16,54 +16,24 @@
 package datadog
 
 import (
-    "github.com/tikv/minitrace-go"
-    "github.com/tinylib/msgp/msgp"
+	"github.com/tinylib/msgp/msgp"
 )
 
 var (
-    _ msgp.Encodable = (*SpanList)(nil)
+	_ msgp.Encodable = (*SpanList)(nil)
 )
 
 type (
-    SpanList []*Span
+	SpanList []*Span
 )
 
 type Span struct {
-    Name     string            `msg:"name"`
-    Service  string            `msg:"service"`
-    Start    int64             `msg:"start"`
-    Duration int64             `msg:"duration"`
-    Meta     map[string]string `msg:"meta,omitempty"`
-    SpanID   uint64            `msg:"span_id"`
-    TraceID  uint64            `msg:"trace_id"`
-    ParentID uint64            `msg:"parent_id"`
-}
-
-func miniSpansToDdSpanList(
-    serviceName string,
-    traceId uint64,
-    spanIdPrefix uint32,
-    spans []minitrace.Span,
-) SpanList {
-    ddSpans := make([]*Span, 0, len(spans))
-
-    for _, span := range spans {
-        meta := make(map[string]string)
-        for _, property := range span.Properties {
-            meta[property.Key] = property.Value
-        }
-        ddSpan := &Span{
-            Name:     span.Event,
-            Service:  serviceName,
-            Start:    int64(span.BeginUnixTimeNs),
-            Duration: int64(span.DurationNs),
-            Meta:     meta,
-            SpanID:   uint64(spanIdPrefix)<<32 | uint64(span.Id),
-            TraceID:  traceId,
-            ParentID: uint64(spanIdPrefix)<<32 | uint64(span.Parent),
-        }
-        ddSpans = append(ddSpans, ddSpan)
-    }
-
-    return ddSpans
+	Name     string            `msg:"name"`
+	Service  string            `msg:"service"`
+	Start    int64             `msg:"start"`
+	Duration int64             `msg:"duration"`
+	Meta     map[string]string `msg:"meta,omitempty"`
+	SpanID   uint64            `msg:"span_id"`
+	TraceID  uint64            `msg:"trace_id"`
+	ParentID uint64            `msg:"parent_id"`
 }
