@@ -147,6 +147,28 @@ func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool)
 	return
 }
 
+func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok bool) {
+	var tracingCtx *tracingContext
+	if s, ok := ctx.(spanContext); ok {
+		tracingCtx = s.tracingContext
+	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
+		tracingCtx = s.tracingContext
+	} else {
+		return false
+	}
+
+	tracingCtx.mu.Lock()
+	if !tracingCtx.collected {
+		fn(tracingCtx.attachment)
+		ok = true
+	} else {
+		ok = false
+	}
+	tracingCtx.mu.Unlock()
+
+	return
+}
+
 type SpanHandle struct {
 	spanContext     spanContext
 	beginUnixTimeNs *uint64
