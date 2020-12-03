@@ -154,7 +154,7 @@ func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok 
 	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
 		tracingCtx = s.tracingContext
 	} else {
-		return
+		return false
 	}
 
 	tracingCtx.mu.Lock()
