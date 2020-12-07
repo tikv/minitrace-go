@@ -42,19 +42,19 @@ type tracingKey struct{}
 
 var activeTracingKey = tracingKey{}
 
-func (s spanContext) Deadline() (deadline time.Time, ok bool) {
+func (s *spanContext) Deadline() (deadline time.Time, ok bool) {
 	return s.parent.Deadline()
 }
 
-func (s spanContext) Done() <-chan struct{} {
+func (s *spanContext) Done() <-chan struct{} {
 	return s.parent.Done()
 }
 
-func (s spanContext) Err() error {
+func (s *spanContext) Err() error {
 	return s.parent.Err()
 }
 
-func (s spanContext) Value(key interface{}) interface{} {
+func (s *spanContext) Value(key interface{}) interface{} {
 	if key == activeTracingKey {
 		return s
 	} else {

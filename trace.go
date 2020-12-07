@@ -50,7 +50,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 	s.BeginUnixTimeNs = monoNow
 	s.Event = event
 
-	spanCtx := spanContext{
+	spanCtx := &spanContext{
 		parent:         ctx,
 		tracingContext: tCtx,
 		tracedSpans: &localSpans{
@@ -82,27 +82,35 @@ func StartSpanWithContext(ctx context.Context, event string) (context.Context, S
 }
 
 func StartSpan(ctx context.Context, event string) (res SpanHandle) {
-	if s, ok := ctx.(spanContext); ok {
-		// We'd like to modify the context on "stack" directly to eliminate heap memory allocation
-		res.spanContext = s
-	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
-		res.spanContext.parent = ctx
-		res.spanContext.tracingContext = s.tracingContext
-		res.spanContext.tracedSpans = s.tracedSpans
-		res.spanContext.currentGid = s.currentGid
-		res.spanContext.currentSpanId = s.currentSpanId
-		res.spanContext.createMonoTimeNs = s.createMonoTimeNs
-		res.spanContext.createUnixTimeNs = s.createUnixTimeNs
+	var parentID uint32
+	var parentGID int64
+	var parentLocalSpans *localSpans
+	if s, ok := ctx.(*spanContext); ok {
+		parentID = s.currentSpanId
+		parentGID = s.currentGid
+		parentLocalSpans = s.tracedSpans
+		res.spanContext = &spanContext{
+			parent:         s.parent,
+			tracingContext: s.tracingContext,
+		}
+	} else if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
+		parentID = s.currentSpanId
+		parentGID = s.currentGid
+		parentLocalSpans = s.tracedSpans
+		res.spanContext = &spanContext{
+			parent:         ctx,
+			tracingContext: s.tracingContext,
+		}
 	} else {
 		res.finished = true
 		return
 	}
 
 	id := nextId()
-	goid := gid.Get()
+	goID := gid.Get()
 	var slot *Span
 
-	if goid != res.spanContext.currentGid || res.spanContext.tracedSpans.spans.collected {
+	if goID != parentGID || parentLocalSpans.spans.collected {
 		// Use "goroutine-local" collection to reduce synchronization overhead.
 		// If a previous processing has collected spans, we should allocate a new collection.
 
@@ -115,21 +123,23 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 			refCount: 1,
 		}
 	} else {
+		res.spanContext.tracedSpans = parentLocalSpans
+
 		// Fetch a slot from the local collection
-		slot = res.spanContext.tracedSpans.spans.slot()
+		slot = parentLocalSpans.spans.slot()
 
 		// Collection is shared to a new span now so the reference count need to update.
-		res.spanContext.tracedSpans.refCount += 1
+		parentLocalSpans.refCount += 1
 	}
 
 	slot.ID = id
-	slot.ParentID = res.spanContext.currentSpanId
+	slot.ParentID = parentID
 	// Fill a monotonic time for now. After the span is finished, and it will be replaced by a unix time.
 	slot.BeginUnixTimeNs = monotimeNs()
 	slot.Event = event
 
 	res.spanContext.currentSpanId = id
-	res.spanContext.currentGid = goid
+	res.spanContext.currentGid = goID
 	res.beginUnixTimeNs = &slot.BeginUnixTimeNs
 	res.durationNs = &slot.DurationNs
 	res.properties = &slot.Properties
@@ -138,9 +148,7 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 }
 
 func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool) {
-	if s, ok := ctx.(spanContext); ok {
-		return s.currentSpanId, s.tracingContext.traceId, ok
-	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
+	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
 		return s.currentSpanId, s.tracingContext.traceId, ok
 	}
 
@@ -149,9 +157,7 @@ func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool)
 
 func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok bool) {
 	var tracingCtx *tracingContext
-	if s, ok := ctx.(spanContext); ok {
-		tracingCtx = s.tracingContext
-	} else if s, ok := ctx.Value(activeTracingKey).(spanContext); ok {
+	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
 		tracingCtx = s.tracingContext
 	} else {
 		return false
@@ -170,7 +176,7 @@ func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok 
 }
 
 type SpanHandle struct {
-	spanContext     spanContext
+	spanContext     *spanContext
 	beginUnixTimeNs *uint64
 	durationNs      *uint64
 	properties      *[]Property
