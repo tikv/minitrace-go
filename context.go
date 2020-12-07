@@ -14,15 +14,11 @@
 package minitrace
 
 import (
-	"context"
 	"sync"
-	"time"
 )
 
 // A span context embedded into ctx.context
 type spanContext struct {
-	parent context.Context
-
 	tracingContext *tracingContext
 
 	// A "goroutine-local" span collection
@@ -41,26 +37,6 @@ type spanContext struct {
 type tracingKey struct{}
 
 var activeTracingKey = tracingKey{}
-
-func (s *spanContext) Deadline() (deadline time.Time, ok bool) {
-	return s.parent.Deadline()
-}
-
-func (s *spanContext) Done() <-chan struct{} {
-	return s.parent.Done()
-}
-
-func (s *spanContext) Err() error {
-	return s.parent.Err()
-}
-
-func (s *spanContext) Value(key interface{}) interface{} {
-	if key == activeTracingKey {
-		return s
-	} else {
-		return s.parent.Value(key)
-	}
-}
 
 // Represents a per goroutine buffer
 type localSpans struct {
