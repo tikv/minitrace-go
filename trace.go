@@ -51,6 +51,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 	s.Event = event
 
 	spanCtx := &spanContext{
+		parent:         ctx,
 		tracingContext: tCtx,
 		tracedSpans: &localSpans{
 			spans:    bl,
@@ -63,7 +64,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 		createMonoTimeNs: monoNow,
 	}
 
-	return context.WithValue(ctx, activeTracingKey, spanCtx), TraceHandle{SpanHandle{
+	return spanCtx, TraceHandle{SpanHandle{
 		spanCtx,
 		&s.BeginUnixTimeNs,
 		&s.DurationNs,
@@ -75,7 +76,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := StartSpan(ctx, event)
 	if !handle.finished {
-		return context.WithValue(ctx, activeTracingKey, handle.spanContext), handle
+		return handle.spanContext, handle
 	}
 	return ctx, handle
 }
@@ -84,11 +85,20 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 	var parentID uint32
 	var parentGID int64
 	var parentLocalSpans *localSpans
-	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
+	if s, ok := ctx.(*spanContext); ok {
 		parentID = s.currentSpanId
 		parentGID = s.currentGid
 		parentLocalSpans = s.tracedSpans
 		res.spanContext = &spanContext{
+			parent:         s.parent,
+			tracingContext: s.tracingContext,
+		}
+	} else if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
+		parentID = s.currentSpanId
+		parentGID = s.currentGid
+		parentLocalSpans = s.tracedSpans
+		res.spanContext = &spanContext{
+			parent:         ctx,
 			tracingContext: s.tracingContext,
 		}
 	} else {
