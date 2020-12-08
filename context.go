@@ -14,11 +14,15 @@
 package minitrace
 
 import (
+	"context"
 	"sync"
+	"time"
 )
 
 // A span context embedded into ctx.context
 type spanContext struct {
+	parent context.Context
+
 	tracingContext *tracingContext
 
 	// A "goroutine-local" span collection
@@ -29,14 +33,31 @@ type spanContext struct {
 
 	// Used to check if the new span is created at another goroutine
 	currentGid int64
-
-	createUnixTimeNs uint64
-	createMonoTimeNs uint64
 }
 
 type tracingKey struct{}
 
 var activeTracingKey = tracingKey{}
+
+func (s *spanContext) Deadline() (deadline time.Time, ok bool) {
+	return s.parent.Deadline()
+}
+
+func (s *spanContext) Done() <-chan struct{} {
+	return s.parent.Done()
+}
+
+func (s *spanContext) Err() error {
+	return s.parent.Err()
+}
+
+func (s *spanContext) Value(key interface{}) interface{} {
+	if key == activeTracingKey {
+		return s
+	} else {
+		return s.parent.Value(key)
+	}
+}
 
 // Represents a per goroutine buffer
 type localSpans struct {
@@ -45,7 +66,9 @@ type localSpans struct {
 }
 
 type tracingContext struct {
-	traceId uint64
+	traceId          uint64
+	createUnixTimeNs uint64
+	createMonoTimeNs uint64
 
 	mu             sync.Mutex
 	collectedSpans []Span

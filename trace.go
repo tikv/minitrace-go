@@ -29,13 +29,15 @@ func nextId() uint32 {
 }
 
 func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment interface{}) (context.Context, TraceHandle) {
-	tCtx := &tracingContext{
-		traceId:    traceId,
-		attachment: attachment,
-	}
-
 	monoNow := monotimeNs()
 	unixNow := unixtimeNs()
+
+	tCtx := &tracingContext{
+		traceId:          traceId,
+		attachment:       attachment,
+		createUnixTimeNs: unixNow,
+		createMonoTimeNs: monoNow,
+	}
 
 	// Init a buffer list.
 	bl := newBufferList()
@@ -51,6 +53,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 	s.Event = event
 
 	spanCtx := &spanContext{
+		parent:         ctx,
 		tracingContext: tCtx,
 		tracedSpans: &localSpans{
 			spans:    bl,
@@ -58,12 +61,9 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 		},
 		currentSpanId: s.ID,
 		currentGid:    gid.Get(),
-
-		createUnixTimeNs: unixNow,
-		createMonoTimeNs: monoNow,
 	}
 
-	return context.WithValue(ctx, activeTracingKey, spanCtx), TraceHandle{SpanHandle{
+	return spanCtx, TraceHandle{SpanHandle{
 		spanCtx,
 		&s.BeginUnixTimeNs,
 		&s.DurationNs,
@@ -75,7 +75,7 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
 	handle := StartSpan(ctx, event)
 	if !handle.finished {
-		return context.WithValue(ctx, activeTracingKey, handle.spanContext), handle
+		return handle.spanContext, handle
 	}
 	return ctx, handle
 }
@@ -84,11 +84,22 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 	var parentID uint32
 	var parentGID int64
 	var parentLocalSpans *localSpans
-	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
+
+	if s, ok := ctx.(*spanContext); ok {
+		// Fold spanContext to reduce the depth of context tree.
 		parentID = s.currentSpanId
 		parentGID = s.currentGid
 		parentLocalSpans = s.tracedSpans
 		res.spanContext = &spanContext{
+			parent:         s.parent,
+			tracingContext: s.tracingContext,
+		}
+	} else if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
+		parentID = s.currentSpanId
+		parentGID = s.currentGid
+		parentLocalSpans = s.tracedSpans
+		res.spanContext = &spanContext{
+			parent:         ctx,
 			tracingContext: s.tracingContext,
 		}
 	} else {
@@ -197,12 +208,11 @@ func (hd *SpanHandle) Finish() {
 	if hd.finished {
 		return
 	}
-
 	hd.finished = true
 
 	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
 	*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
-	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createUnixTimeNs
+	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.tracingContext.createMonoTimeNs) + hd.spanContext.tracingContext.createUnixTimeNs
 
 	hd.spanContext.tracedSpans.refCount -= 1
 	if hd.spanContext.tracedSpans.refCount == 0 {
