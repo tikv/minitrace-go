@@ -33,9 +33,6 @@ type spanContext struct {
 
 	// Used to check if the new span is created at another goroutine
 	currentGid int64
-
-	createUnixTimeNs uint64
-	createMonoTimeNs uint64
 }
 
 type tracingKey struct{}
@@ -69,7 +66,9 @@ type localSpans struct {
 }
 
 type tracingContext struct {
-	traceId uint64
+	traceId          uint64
+	createUnixTimeNs uint64
+	createMonoTimeNs uint64
 
 	mu             sync.Mutex
 	collectedSpans []Span

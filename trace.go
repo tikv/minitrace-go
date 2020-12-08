@@ -29,13 +29,15 @@ func nextId() uint32 {
 }
 
 func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment interface{}) (context.Context, TraceHandle) {
-	tCtx := &tracingContext{
-		traceId:    traceId,
-		attachment: attachment,
-	}
-
 	monoNow := monotimeNs()
 	unixNow := unixtimeNs()
+
+	tCtx := &tracingContext{
+		traceId:          traceId,
+		attachment:       attachment,
+		createUnixTimeNs: unixNow,
+		createMonoTimeNs: monoNow,
+	}
 
 	// Init a buffer list.
 	bl := newBufferList()
@@ -59,9 +61,6 @@ func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment
 		},
 		currentSpanId: s.ID,
 		currentGid:    gid.Get(),
-
-		createUnixTimeNs: unixNow,
-		createMonoTimeNs: monoNow,
 	}
 
 	return spanCtx, TraceHandle{SpanHandle{
@@ -85,7 +84,9 @@ func StartSpan(ctx context.Context, event string) (res SpanHandle) {
 	var parentID uint32
 	var parentGID int64
 	var parentLocalSpans *localSpans
+
 	if s, ok := ctx.(*spanContext); ok {
+		// Fold spanContext to reduce the depth of context tree.
 		parentID = s.currentSpanId
 		parentGID = s.currentGid
 		parentLocalSpans = s.tracedSpans
@@ -207,12 +208,11 @@ func (hd *SpanHandle) Finish() {
 	if hd.finished {
 		return
 	}
-
 	hd.finished = true
 
 	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
 	*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
-	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.createMonoTimeNs) + hd.spanContext.createUnixTimeNs
+	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.tracingContext.createMonoTimeNs) + hd.spanContext.tracingContext.createUnixTimeNs
 
 	hd.spanContext.tracedSpans.refCount -= 1
 	if hd.spanContext.tracedSpans.refCount == 0 {
