@@ -27,23 +27,18 @@ func Send(buf io.Reader, agent string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create http request: %v", err)
 	}
-
 	req.Header.Set("Datadog-Meta-Tracer-Version", "v1.27.0")
 	req.Header.Set("Content-Type", "application/msgpack")
 
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-		},
-	}
-	response, err := httpClient.Do(req)
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
+	defer response.Body.Close()
+
 	if code := response.StatusCode; code >= 400 {
 		msg := make([]byte, 1000)
 		n, _ := response.Body.Read(msg)
-		response.Body.Close()
 		txt := http.StatusText(code)
 		if n > 0 {
 			return fmt.Errorf("%s (Status: %s)", msg[:n], txt)
