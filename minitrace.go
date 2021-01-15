@@ -22,6 +22,27 @@ type Span struct {
 	Properties      []Property
 }
 
+func (s *Span) beginWith(parentID uint32, event string) {
+	s.ID = nextID()
+	s.ParentID = parentID
+
+	// Fill a monotonic time for now. After span is finished, it will replace by a unix time.
+	s.BeginUnixTimeNs = monotimeNs()
+
+	s.Event = event
+}
+
+func (s *Span) endWith(ctx *traceContext) {
+	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
+	beginMonoTimeNs := s.BeginUnixTimeNs
+	s.DurationNs = monotimeNs() - beginMonoTimeNs
+	s.BeginUnixTimeNs = (beginMonoTimeNs - ctx.createMonoTimeNs) + ctx.createUnixTimeNs
+}
+
+func (s *Span) addProperty(key, value string) {
+	s.Properties = append(s.Properties, Property{Key: key, Value: value})
+}
+
 type Property struct {
 	Key   string
 	Value string

@@ -24,52 +24,21 @@ import (
 var idGen uint32 = 1
 
 // Returns incremental uint32 unique ID.
-func nextId() uint32 {
+func nextID() uint32 {
 	return atomic.AddUint32(&idGen, 1)
 }
 
-func StartRootSpan(ctx context.Context, event string, traceId uint64, attachment interface{}) (context.Context, TraceHandle) {
-	monoNow := monotimeNs()
-	unixNow := unixtimeNs()
+func StartRootSpan(ctx context.Context, event string, traceID uint64, attachment interface{}) (context.Context, TraceHandle) {
+	traceCtx := newTraceContext(traceID, attachment)
+	localSpanBuffer := newLocalSpanBuffer()
 
-	tCtx := &tracingContext{
-		traceId:          traceId,
-		attachment:       attachment,
-		createUnixTimeNs: unixNow,
-		createMonoTimeNs: monoNow,
-	}
-
-	// Init a buffer list.
-	bl := newBufferList()
-	// Get a span slot,
-	s := bl.slot()
-
-	// Fill fields of the span slot
-	s.ID = nextId()
 	// Root span doesn't have a parent. Its parent span id is set to 0.
-	s.ParentID = 0
-	// Fill a monotonic time for now. After span is finished, it will replace by a unix time.
-	s.BeginUnixTimeNs = monoNow
-	s.Event = event
+	const ParentID = 0
+	localSpanHandle := localSpanBuffer.pushSpan(ParentID, event)
+	spanCtx := newSpanContext(ctx, traceCtx, localSpanBuffer, localSpanHandle)
+	spanHandle := newSpanHandle(spanCtx, localSpanHandle)
 
-	spanCtx := &spanContext{
-		parent:         ctx,
-		tracingContext: tCtx,
-		tracedSpans: &localSpans{
-			spans:    bl,
-			refCount: 1,
-		},
-		currentSpanId: s.ID,
-		currentGid:    gid.Get(),
-	}
-
-	return spanCtx, TraceHandle{SpanHandle{
-		spanCtx,
-		&s.BeginUnixTimeNs,
-		&s.DurationNs,
-		&s.Properties,
-		false,
-	}}
+	return spanCtx, TraceHandle{spanHandle}
 }
 
 func StartSpanWithContext(ctx context.Context, event string) (context.Context, SpanHandle) {
@@ -80,170 +49,97 @@ func StartSpanWithContext(ctx context.Context, event string) (context.Context, S
 	return ctx, handle
 }
 
-func StartSpan(ctx context.Context, event string) (res SpanHandle) {
-	var parentID uint32
-	var parentGID int64
-	var parentLocalSpans *localSpans
+func StartSpan(ctx context.Context, event string) (handle SpanHandle) {
+	var parentCtx context.Context
+	var parentSpanCtx *spanContext
 
 	if s, ok := ctx.(*spanContext); ok {
 		// Fold spanContext to reduce the depth of context tree.
-		parentID = s.currentSpanId
-		parentGID = s.currentGid
-		parentLocalSpans = s.tracedSpans
-		res.spanContext = &spanContext{
-			parent:         s.parent,
-			tracingContext: s.tracingContext,
-		}
-	} else if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
-		parentID = s.currentSpanId
-		parentGID = s.currentGid
-		parentLocalSpans = s.tracedSpans
-		res.spanContext = &spanContext{
-			parent:         ctx,
-			tracingContext: s.tracingContext,
-		}
+		parentCtx = s.parent
+		parentSpanCtx = s
+	} else if s, ok := ctx.Value(activeTraceKey).(*spanContext); ok {
+		parentCtx = ctx
+		parentSpanCtx = s
 	} else {
-		res.finished = true
+		handle.finished = true
 		return
 	}
 
-	id := nextId()
-	goID := gid.Get()
-	var slot *Span
-
-	if goID != parentGID || parentLocalSpans.spans.collected {
-		// Use "goroutine-local" collection to reduce synchronization overhead.
-		// If a previous processing has collected spans, we should allocate a new collection.
-
-		bl := newBufferList()
-		slot = bl.slot()
-
-		// Init a new collection. Reference count begin from 1.
-		res.spanContext.tracedSpans = &localSpans{
-			spans:    bl,
-			refCount: 1,
-		}
-	} else {
-		res.spanContext.tracedSpans = parentLocalSpans
-
-		// Fetch a slot from the local collection
-		slot = parentLocalSpans.spans.slot()
-
-		// Collection is shared to a new span now so the reference count need to update.
-		parentLocalSpans.refCount += 1
+	localSpanBuffer := parentSpanCtx.localSpanBuffer
+	if gid.Get() != parentSpanCtx.gid {
+		localSpanBuffer = newLocalSpanBuffer()
 	}
 
-	slot.ID = id
-	slot.ParentID = parentID
-	// Fill a monotonic time for now. After the span is finished, and it will be replaced by a unix time.
-	slot.BeginUnixTimeNs = monotimeNs()
-	slot.Event = event
-
-	res.spanContext.currentSpanId = id
-	res.spanContext.currentGid = goID
-	res.beginUnixTimeNs = &slot.BeginUnixTimeNs
-	res.durationNs = &slot.DurationNs
-	res.properties = &slot.Properties
-
-	return
+	traceCtx := parentSpanCtx.traceContext
+	localSpanHandle := localSpanBuffer.pushSpan(parentSpanCtx.spanID, event)
+	spanCtx := newSpanContext(parentCtx, traceCtx, localSpanBuffer, localSpanHandle)
+	return newSpanHandle(spanCtx, localSpanHandle)
 }
 
-func CurrentSpanId(ctx context.Context) (spanId uint32, traceId uint64, ok bool) {
-	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
-		return s.currentSpanId, s.tracingContext.traceId, ok
+func CurrentSpanID(ctx context.Context) (spanID uint32, traceID uint64, ok bool) {
+	if s, ok := ctx.Value(activeTraceKey).(*spanContext); ok {
+		return s.spanID, s.traceContext.traceID, ok
 	}
 
 	return
 }
 
 func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok bool) {
-	var tracingCtx *tracingContext
-	if s, ok := ctx.Value(activeTracingKey).(*spanContext); ok {
-		tracingCtx = s.tracingContext
-	} else {
+	spanCtx, ok := ctx.Value(activeTraceKey).(*spanContext)
+	if !ok {
 		return false
 	}
-
-	tracingCtx.mu.Lock()
-	if !tracingCtx.collected {
-		fn(tracingCtx.attachment)
-		ok = true
-	} else {
-		ok = false
-	}
-	tracingCtx.mu.Unlock()
-
-	return
+	return spanCtx.traceContext.accessAttachment(fn)
 }
 
 type SpanHandle struct {
 	spanContext     *spanContext
-	beginUnixTimeNs *uint64
-	durationNs      *uint64
-	properties      *[]Property
+	localSpanHandle localSpanHandle
 	finished        bool
 }
 
-func (hd *SpanHandle) AddProperty(key, value string) {
-	if hd.finished {
-		return
-	}
-
-	*hd.properties = append(*hd.properties, Property{Key: key, Value: value})
-}
-
-func (hd *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
-	if hd.finished {
-		return
-	}
-
-	hd.spanContext.tracingContext.mu.Lock()
-	if !hd.spanContext.tracingContext.collected {
-		fn(hd.spanContext.tracingContext.attachment)
-	}
-	hd.spanContext.tracingContext.mu.Unlock()
-}
-
-func (hd *SpanHandle) Finish() {
-	if hd.finished {
-		return
-	}
-	hd.finished = true
-
-	// For now, `beginUnixTimeNs` is a monotonic time. Here to correct its value to satisfy the semantic.
-	*hd.durationNs = monotimeNs() - *hd.beginUnixTimeNs
-	*hd.beginUnixTimeNs = (*hd.beginUnixTimeNs - hd.spanContext.tracingContext.createMonoTimeNs) + hd.spanContext.tracingContext.createUnixTimeNs
-
-	hd.spanContext.tracedSpans.refCount -= 1
-	if hd.spanContext.tracedSpans.refCount == 0 {
-		hd.spanContext.tracingContext.mu.Lock()
-		if !hd.spanContext.tracingContext.collected {
-			hd.spanContext.tracingContext.collectedSpans = append(hd.spanContext.tracingContext.collectedSpans, hd.spanContext.tracedSpans.spans.collect()...)
-		}
-		hd.spanContext.tracingContext.mu.Unlock()
+func newSpanHandle(spanCtx *spanContext, localSpanHandle localSpanHandle) SpanHandle {
+	return SpanHandle{
+		spanContext:     spanCtx,
+		localSpanHandle: localSpanHandle,
+		finished:        false,
 	}
 }
 
-func (hd *SpanHandle) TraceId() uint64 {
-	return hd.spanContext.tracingContext.traceId
+func (sh *SpanHandle) AddProperty(key, value string) {
+	if sh.finished {
+		return
+	}
+	sh.localSpanHandle.span.addProperty(key, value)
+}
+
+func (sh *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
+	if sh.finished {
+		return
+	}
+	sh.spanContext.traceContext.accessAttachment(fn)
+}
+
+func (sh *SpanHandle) Finish() {
+	if sh.finished {
+		return
+	}
+	sh.finished = true
+
+	localBuf := sh.spanContext.localSpanBuffer
+	traceCtx := sh.spanContext.traceContext
+	localBuf.finishSpan(sh.localSpanHandle, traceCtx)
+}
+
+func (sh *SpanHandle) TraceID() uint64 {
+	return sh.spanContext.traceContext.traceID
 }
 
 type TraceHandle struct {
 	SpanHandle
 }
 
-func (hd *TraceHandle) Collect() (spans []Span, attachment interface{}) {
-	hd.SpanHandle.Finish()
-
-	hd.spanContext.tracingContext.mu.Lock()
-
-	if !hd.spanContext.tracingContext.collected {
-		spans = hd.spanContext.tracingContext.collectedSpans
-		attachment = hd.spanContext.tracingContext.attachment
-	}
-	hd.spanContext.tracingContext.collected = true
-
-	hd.spanContext.tracingContext.mu.Unlock()
-
-	return
+func (th *TraceHandle) Collect() (spans []Span, attachment interface{}) {
+	th.SpanHandle.Finish()
+	return th.spanContext.traceContext.collect()
 }

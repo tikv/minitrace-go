@@ -34,14 +34,14 @@ func Send(buf []byte, agent string) error {
 func MiniSpansToJaegerTrace(
 	serviceName string,
 	traceID int64,
-	spanIdPrefix uint32,
+	spanIDPrefix uint32,
 	rootParentSpanID int64,
 	spans []minitrace.Span,
 ) Trace {
 	retSpans := make([]Span, 0, len(spans))
 
 	for _, span := range spans {
-		parentID := int64(spanIdPrefix)<<32 | int64(span.ParentID)
+		parentID := int64(spanIDPrefix)<<32 | int64(span.ParentID)
 		if span.ParentID == 0 {
 			parentID = rootParentSpanID
 		}
@@ -62,7 +62,7 @@ func MiniSpansToJaegerTrace(
 		}
 
 		retSpans = append(retSpans, Span{
-			SpanID:          int64(spanIdPrefix)<<32 | int64(span.ID),
+			SpanID:          int64(spanIDPrefix)<<32 | int64(span.ID),
 			ParentID:        parentID,
 			StartUnixTimeUs: int64(span.BeginUnixTimeNs / 1000),
 			DurationUs:      int64(span.DurationNs / 1000),

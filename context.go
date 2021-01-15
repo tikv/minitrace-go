@@ -15,6 +15,7 @@ package minitrace
 
 import (
 	"context"
+	"github.com/silentred/gid"
 	"sync"
 	"time"
 )
@@ -23,21 +24,30 @@ import (
 type spanContext struct {
 	parent context.Context
 
-	tracingContext *tracingContext
+	/// Frozen fields
+	spanID uint32
+	gid    int64
+
+	// Shared trace context
+	traceContext *traceContext
 
 	// A "goroutine-local" span collection
-	tracedSpans *localSpans
+	localSpanBuffer *localSpanBuffer
+}
 
-	// Used to build parent-child relation between spans
-	currentSpanId uint32
-
-	// Used to check if the new span is created at another goroutine
-	currentGid int64
+func newSpanContext(ctx context.Context, tracingCtx *traceContext, localSpans *localSpanBuffer, localSpanHandle localSpanHandle) *spanContext {
+	return &spanContext{
+		parent:          ctx,
+		traceContext:    tracingCtx,
+		localSpanBuffer: localSpans,
+		spanID:          localSpanHandle.span.ID,
+		gid:             gid.Get(),
+	}
 }
 
 type tracingKey struct{}
 
-var activeTracingKey = tracingKey{}
+var activeTraceKey = tracingKey{}
 
 func (s *spanContext) Deadline() (deadline time.Time, ok bool) {
 	return s.parent.Deadline()
@@ -52,26 +62,74 @@ func (s *spanContext) Err() error {
 }
 
 func (s *spanContext) Value(key interface{}) interface{} {
-	if key == activeTracingKey {
+	if key == activeTraceKey {
 		return s
 	} else {
 		return s.parent.Value(key)
 	}
 }
 
-// Represents a per goroutine buffer
-type localSpans struct {
-	spans    *bufferList
-	refCount int
-}
-
-type tracingContext struct {
-	traceId          uint64
+type traceContext struct {
+	/// Frozen fields
+	traceID          uint64
 	createUnixTimeNs uint64
 	createMonoTimeNs uint64
 
+	/// Shared mutable fields
 	mu             sync.Mutex
 	collectedSpans []Span
 	attachment     interface{}
 	collected      bool
+}
+
+func newTraceContext(traceID uint64, attachment interface{}) *traceContext {
+	return &traceContext{
+		traceID:          traceID,
+		createUnixTimeNs: unixtimeNs(),
+		createMonoTimeNs: monotimeNs(),
+		attachment:       attachment,
+		collected:        false,
+	}
+}
+
+func (tc *traceContext) accessAttachment(fn func(attachment interface{})) (ok bool) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	if tc.collected {
+		return false
+	}
+
+	fn(tc.attachment)
+	return true
+}
+
+func (tc *traceContext) extendSpans(spans []Span) (ok bool) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	if tc.collected {
+		return false
+	}
+
+	tc.collectedSpans = append(tc.collectedSpans, spans...)
+	return true
+}
+
+func (tc *traceContext) collect() (spans []Span, attachment interface{}) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	if tc.collected {
+		return
+	}
+	tc.collected = true
+
+	spans = tc.collectedSpans
+	attachment = tc.attachment
+
+	tc.collectedSpans = nil
+	tc.attachment = nil
+
+	return
 }

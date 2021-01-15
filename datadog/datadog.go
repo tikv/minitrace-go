@@ -62,15 +62,15 @@ func MessagePackEncode(buf io.Writer, spanList SpanList) error {
 
 func MiniSpansToDatadogSpanList(
 	serviceName string,
-	traceId uint64,
-	spanIdPrefix uint32,
+	traceID uint64,
+	spanIDPrefix uint32,
 	rootParentSpanID uint64,
 	spans []minitrace.Span,
 ) SpanList {
 	ddSpans := make([]*Span, 0, len(spans))
 
 	for _, span := range spans {
-		parentID := uint64(spanIdPrefix)<<32 | uint64(span.ParentID)
+		parentID := uint64(spanIDPrefix)<<32 | uint64(span.ParentID)
 		if span.ParentID == 0 {
 			parentID = rootParentSpanID
 		}
@@ -85,8 +85,8 @@ func MiniSpansToDatadogSpanList(
 			Start:    int64(span.BeginUnixTimeNs),
 			Duration: int64(span.DurationNs),
 			Meta:     meta,
-			SpanID:   uint64(spanIdPrefix)<<32 | uint64(span.ID),
-			TraceID:  traceId,
+			SpanID:   uint64(spanIDPrefix)<<32 | uint64(span.ID),
+			TraceID:  traceID,
 			ParentID: parentID,
 		}
 		ddSpans = append(ddSpans, ddSpan)
