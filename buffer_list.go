@@ -25,10 +25,9 @@ type buffer struct {
 }
 
 type bufferList struct {
-	head      *buffer
-	tail      *buffer
-	collected bool
-	len       int
+	head *buffer
+	tail *buffer
+	len  int
 }
 
 var bufferPool = &sync.Pool{New: func() interface{} { return &buffer{} }}
@@ -40,7 +39,6 @@ func newBufferList() *bufferList {
 	return &bufferList{
 		n,
 		n,
-		false,
 		0,
 	}
 }
@@ -59,12 +57,6 @@ func (bl *bufferList) slot() *Span {
 }
 
 func (bl *bufferList) collect() []Span {
-	if bl.collected {
-		return nil
-	} else {
-		bl.collected = true
-	}
-
 	h := bl.head.next
 	bufferPool.Put(bl.head)
 	bl.head = nil
@@ -76,7 +68,7 @@ func (bl *bufferList) collect() []Span {
 	for remainingLen > sizePerBuffer {
 		cursor := bl.len - remainingLen
 		copy(res[cursor:cursor+sizePerBuffer], h.array[:])
-		h.array = [256]Span{}
+		h.array = [1 << POW]Span{}
 		remainingLen -= sizePerBuffer
 		n := h.next
 		bufferPool.Put(h)
@@ -85,7 +77,7 @@ func (bl *bufferList) collect() []Span {
 
 	cursor := bl.len - remainingLen
 	copy(res[cursor:], h.array[:remainingLen])
-	h.array = [256]Span{}
+	h.array = [1 << POW]Span{}
 	bufferPool.Put(h)
 
 	return res

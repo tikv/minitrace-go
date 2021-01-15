@@ -76,17 +76,17 @@ func BenchmarkAppdashTrace(b *testing.B) {
 }
 
 func TestMiniTrace(t *testing.T) {
-	var traceId uint64 = 9527
-	ctx, handle := StartRootSpan(context.Background(), "root", traceId, nil)
+	var traceID uint64 = 9527
+	ctx, handle := StartRootSpan(context.Background(), "root", traceID, nil)
 	var wg sync.WaitGroup
 
-	if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
-		spanId := handle.spanContext.currentSpanId
-		if spanId != spanId1 {
-			t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
+	if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+		spanID := handle.spanContext.spanID
+		if spanID != spanID1 {
+			t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
 		}
-		if traceId != traceId1 {
-			t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
+		if traceID != traceID1 {
+			t.Fatalf("unmatched trace ID: expected %d got %d", traceID, traceID1)
 		}
 	} else {
 		t.Fatalf("cannot get current span ID")
@@ -95,13 +95,13 @@ func TestMiniTrace(t *testing.T) {
 	for i := 1; i < 5; i++ {
 		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 
-		if spanId1, traceId1, ok := CurrentSpanId(ctx); ok {
-			spanId := handle.spanContext.currentSpanId
-			if spanId != spanId1 {
-				t.Fatalf("unmatched span ID: expected %d got %d", spanId, spanId1)
+		if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+			spanID := handle.spanContext.spanID
+			if spanID != spanID1 {
+				t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
 			}
-			if traceId != traceId1 {
-				t.Fatalf("unmatched trace ID: expected %d got %d", traceId, traceId1)
+			if traceID != traceID1 {
+				t.Fatalf("unmatched trace ID: expected %d got %d", traceID, traceID1)
 			}
 		} else {
 			t.Fatalf("cannot get current span ID")

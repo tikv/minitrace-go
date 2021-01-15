@@ -32,7 +32,7 @@ func monotimeNs() uint64 {
 }
 
 // Standard library's `time.Now()` will invoke two syscalls in Linux. One is `CLOCK_REALTIME` and
-// aanother is `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
+// another is `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
 // time for performance purpose.
 // `unixtimeNs()` is identical to Linux's `clock_gettime(CLOCK_REALTIME, &ts)`
 func unixtimeNs() uint64 {
