@@ -94,7 +94,7 @@ func (tc *traceContext) accessAttachment(fn func(attachment interface{})) (ok bo
 	return true
 }
 
-func (tc *traceContext) extendSpans(spans []Span) (ok bool) {
+func (tc *traceContext) pushSpan(span *Span) (ok bool) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
@@ -102,7 +102,7 @@ func (tc *traceContext) extendSpans(spans []Span) (ok bool) {
 		return false
 	}
 
-	tc.collectedSpans = append(tc.collectedSpans, spans...)
+	tc.collectedSpans = append(tc.collectedSpans, *span)
 	return true
 }
 
