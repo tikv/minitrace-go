@@ -26,7 +26,7 @@ import (
 )
 
 func BenchmarkMiniTrace(b *testing.B) {
-	for i := 100; i < 100001; i *= 10 {
+	for i := 100; i < 10001; i *= 10 {
 		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
 			for j := 0; j < b.N; j++ {
 				ctx, handle := StartRootSpan(context.Background(), "root", 10086, nil)
@@ -46,7 +46,7 @@ func BenchmarkMiniTrace(b *testing.B) {
 }
 
 func BenchmarkAppdashTrace(b *testing.B) {
-	for i := 100; i < 10_001; i *= 10 {
+	for i := 100; i < 10001; i *= 10 {
 		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
 			store := appdash.NewMemoryStore()
 			for j := 0; j < b.N; j++ {
@@ -64,7 +64,9 @@ func BenchmarkAppdashTrace(b *testing.B) {
 
 				traces, err := store.Traces(appdash.TracesOpts{})
 				for _, trace := range traces {
-					store.Delete(trace.ID.Trace)
+					if err := store.Delete(trace.ID.Trace); err != nil {
+						b.Fatal(err)
+					}
 				}
 				if err != nil {
 					b.Fatal(err)
