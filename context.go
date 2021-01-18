@@ -15,7 +15,6 @@ package minitrace
 
 import (
 	"context"
-	"github.com/silentred/gid"
 	"sync"
 	"time"
 )
@@ -24,24 +23,17 @@ import (
 type spanContext struct {
 	parent context.Context
 
-	/// Frozen fields
-	spanID uint32
-	gid    int64
-
 	// Shared trace context
 	traceContext *traceContext
 
-	// A "goroutine-local" span collection
-	localSpanBuffer *localSpanBuffer
+	span *Span
 }
 
-func newSpanContext(ctx context.Context, tracingCtx *traceContext, localSpans *localSpanBuffer, localSpanHandle localSpanHandle) *spanContext {
+func newSpanContext(ctx context.Context, tracingCtx *traceContext, span *Span) *spanContext {
 	return &spanContext{
-		parent:          ctx,
-		traceContext:    tracingCtx,
-		localSpanBuffer: localSpans,
-		spanID:          localSpanHandle.span.ID,
-		gid:             gid.Get(),
+		parent:       ctx,
+		traceContext: tracingCtx,
+		span:         span,
 	}
 }
 
