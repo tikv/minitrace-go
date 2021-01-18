@@ -83,7 +83,7 @@ func TestMiniTrace(t *testing.T) {
 	ctx, handle := StartRootSpan(context.Background(), "root", traceID, nil)
 	var wg sync.WaitGroup
 
-	if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+	if spanID1, traceID1, ok := CurrentID(ctx); ok {
 		spanID := handle.spanContext.spanID
 		if spanID != spanID1 {
 			t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
@@ -98,7 +98,7 @@ func TestMiniTrace(t *testing.T) {
 	for i := 1; i < 5; i++ {
 		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 
-		if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+		if spanID1, traceID1, ok := CurrentID(ctx); ok {
 			spanID := handle.spanContext.spanID
 			if spanID != spanID1 {
 				t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)

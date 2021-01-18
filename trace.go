@@ -28,16 +28,11 @@ func nextID() uint32 {
 
 func StartRootSpan(ctx context.Context, event string, traceID uint64, attachment interface{}) (context.Context, TraceHandle) {
 	traceCtx := newTraceContext(traceID, attachment)
+	spanCtx := newSpanContext(ctx, traceCtx)
 
 	// Root span doesn't have a parent. Its parent span id is set to 0.
 	const ParentID = 0
-
-	traceCtx.collectedSpans = append(traceCtx.collectedSpans, Span{})
-	span := &traceCtx.collectedSpans[len(traceCtx.collectedSpans)-1]
-	span.beginWith(ParentID, event)
-
-	spanCtx := newSpanContext(ctx, traceCtx, span.ID)
-	spanHandle := newSpanHandle(spanCtx, len(traceCtx.collectedSpans)-1)
+	spanHandle := newSpanHandle(spanCtx, ParentID, event)
 
 	return spanCtx, TraceHandle{spanHandle}
 }
@@ -67,18 +62,11 @@ func StartSpan(ctx context.Context, event string) (handle SpanHandle) {
 	}
 
 	traceCtx := parentSpanCtx.traceContext
-	traceCtx.mu.Lock()
-	defer traceCtx.mu.Unlock()
-
-	traceCtx.collectedSpans = append(traceCtx.collectedSpans, Span{})
-	span := &traceCtx.collectedSpans[len(traceCtx.collectedSpans)-1]
-	span.beginWith(parentSpanCtx.spanID, event)
-
-	spanCtx := newSpanContext(parentCtx, traceCtx, span.ID)
-	return newSpanHandle(spanCtx, len(traceCtx.collectedSpans)-1)
+	spanCtx := newSpanContext(parentCtx, traceCtx)
+	return newSpanHandle(spanCtx, parentSpanCtx.spanID, event)
 }
 
-func CurrentSpanID(ctx context.Context) (spanID uint32, traceID uint64, ok bool) {
+func CurrentID(ctx context.Context) (spanID uint32, traceID uint64, ok bool) {
 	if s, ok := ctx.Value(activeTraceKey).(*spanContext); ok {
 		return s.spanID, s.traceContext.traceID, ok
 	}
@@ -96,28 +84,23 @@ func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok 
 
 type SpanHandle struct {
 	spanContext *spanContext
-	spanIndex   int
+	span        Span
 	finished    bool
 }
 
-func newSpanHandle(spanCtx *spanContext, index int) SpanHandle {
-	return SpanHandle{
-		spanContext: spanCtx,
-		spanIndex:   index,
-		finished:    false,
-	}
+func newSpanHandle(spanCtx *spanContext, parentSpanID uint32, event string) (sh SpanHandle) {
+	sh.spanContext = spanCtx
+	sh.span.beginWith(parentSpanID, event)
+	sh.finished = false
+	spanCtx.spanID = sh.span.ID
+	return
 }
 
 func (sh *SpanHandle) AddProperty(key, value string) {
 	if sh.finished {
 		return
 	}
-
-	traceCtx := sh.spanContext.traceContext
-	traceCtx.mu.Lock()
-	defer traceCtx.mu.Unlock()
-
-	sh.spanContext.traceContext.collectedSpans[sh.spanIndex].addProperty(key, value)
+	sh.span.addProperty(key, value)
 }
 
 func (sh *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
@@ -134,10 +117,11 @@ func (sh *SpanHandle) Finish() {
 	sh.finished = true
 
 	traceCtx := sh.spanContext.traceContext
-	traceCtx.mu.Lock()
-	defer traceCtx.mu.Unlock()
+	sh.span.endWith(traceCtx)
 
-	sh.spanContext.traceContext.collectedSpans[sh.spanIndex].endWith(traceCtx)
+	traceCtx.mu.Lock()
+	traceCtx.collectedSpans = append(traceCtx.collectedSpans, sh.span)
+	traceCtx.mu.Unlock()
 }
 
 func (sh *SpanHandle) TraceID() uint64 {

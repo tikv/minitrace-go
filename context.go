@@ -25,15 +25,13 @@ type spanContext struct {
 
 	// Shared trace context
 	traceContext *traceContext
-
-	spanID uint32
+	spanID       uint32
 }
 
-func newSpanContext(ctx context.Context, tracingCtx *traceContext, spanID uint32) *spanContext {
+func newSpanContext(ctx context.Context, tracingCtx *traceContext) *spanContext {
 	return &spanContext{
 		parent:       ctx,
 		traceContext: tracingCtx,
-		spanID:       spanID,
 	}
 }
 
