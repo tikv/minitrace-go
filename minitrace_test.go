@@ -81,7 +81,7 @@ func TestMiniTrace(t *testing.T) {
 	var wg sync.WaitGroup
 
 	if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
-		spanID := handle.spanContext.span.ID
+		spanID := handle.spanContext.spanID
 		if spanID != spanID1 {
 			t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
 		}
@@ -96,7 +96,7 @@ func TestMiniTrace(t *testing.T) {
 		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 
 		if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
-			spanID := handle.spanContext.span.ID
+			spanID := handle.spanContext.spanID
 			if spanID != spanID1 {
 				t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
 			}

@@ -36,8 +36,8 @@ func StartRootSpan(ctx context.Context, event string, traceID uint64, attachment
 	span := &traceCtx.collectedSpans[len(traceCtx.collectedSpans)-1]
 	span.beginWith(ParentID, event)
 
-	spanCtx := newSpanContext(ctx, traceCtx, span)
-	spanHandle := newSpanHandle(spanCtx, span)
+	spanCtx := newSpanContext(ctx, traceCtx, span.ID)
+	spanHandle := newSpanHandle(spanCtx, len(traceCtx.collectedSpans)-1)
 
 	return spanCtx, TraceHandle{spanHandle}
 }
@@ -72,15 +72,15 @@ func StartSpan(ctx context.Context, event string) (handle SpanHandle) {
 
 	traceCtx.collectedSpans = append(traceCtx.collectedSpans, Span{})
 	span := &traceCtx.collectedSpans[len(traceCtx.collectedSpans)-1]
-	span.beginWith(parentSpanCtx.span.ID, event)
+	span.beginWith(parentSpanCtx.spanID, event)
 
-	spanCtx := newSpanContext(parentCtx, traceCtx, span)
-	return newSpanHandle(spanCtx, span)
+	spanCtx := newSpanContext(parentCtx, traceCtx, span.ID)
+	return newSpanHandle(spanCtx, len(traceCtx.collectedSpans)-1)
 }
 
 func CurrentSpanID(ctx context.Context) (spanID uint32, traceID uint64, ok bool) {
 	if s, ok := ctx.Value(activeTraceKey).(*spanContext); ok {
-		return s.span.ID, s.traceContext.traceID, ok
+		return s.spanID, s.traceContext.traceID, ok
 	}
 
 	return
@@ -96,14 +96,14 @@ func AccessAttachment(ctx context.Context, fn func(attachment interface{})) (ok 
 
 type SpanHandle struct {
 	spanContext *spanContext
-	span        *Span
+	spanIndex   int
 	finished    bool
 }
 
-func newSpanHandle(spanCtx *spanContext, span *Span) SpanHandle {
+func newSpanHandle(spanCtx *spanContext, index int) SpanHandle {
 	return SpanHandle{
 		spanContext: spanCtx,
-		span:        span,
+		spanIndex:   index,
 		finished:    false,
 	}
 }
@@ -116,7 +116,8 @@ func (sh *SpanHandle) AddProperty(key, value string) {
 	traceCtx := sh.spanContext.traceContext
 	traceCtx.mu.Lock()
 	defer traceCtx.mu.Unlock()
-	sh.span.addProperty(key, value)
+
+	sh.spanContext.traceContext.collectedSpans[sh.spanIndex].addProperty(key, value)
 }
 
 func (sh *SpanHandle) AccessAttachment(fn func(attachment interface{})) {
@@ -136,7 +137,7 @@ func (sh *SpanHandle) Finish() {
 	traceCtx.mu.Lock()
 	defer traceCtx.mu.Unlock()
 
-	sh.span.endWith(traceCtx)
+	sh.spanContext.traceContext.collectedSpans[sh.spanIndex].endWith(traceCtx)
 }
 
 func (sh *SpanHandle) TraceID() uint64 {
