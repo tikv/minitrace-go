@@ -26,7 +26,7 @@ import (
 )
 
 func BenchmarkMiniTrace(b *testing.B) {
-	for i := 10; i < 100001; i *= 10 {
+	for i := 100; i < 10001; i *= 10 {
 		b.Run(fmt.Sprintf("   %d", i), func(b *testing.B) {
 			for j := 0; j < b.N; j++ {
 				ctx, handle := StartRootSpan(context.Background(), "root", 10086, nil)
@@ -46,10 +46,10 @@ func BenchmarkMiniTrace(b *testing.B) {
 }
 
 func BenchmarkAppdashTrace(b *testing.B) {
-	for i := 10; i < 10_001; i *= 10 {
+	for i := 100; i < 10001; i *= 10 {
 		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			store := appdash.NewMemoryStore()
 			for j := 0; j < b.N; j++ {
-				store := appdash.NewMemoryStore()
 				tracer := traceImpl.NewTracer(store)
 				span, ctx := opentracing.StartSpanFromContextWithTracer(context.Background(), tracer, "trace")
 
@@ -63,6 +63,11 @@ func BenchmarkAppdashTrace(b *testing.B) {
 				span.Finish()
 
 				traces, err := store.Traces(appdash.TracesOpts{})
+				for _, trace := range traces {
+					if err := store.Delete(trace.ID.Trace); err != nil {
+						b.Fatal(err)
+					}
+				}
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -80,7 +85,7 @@ func TestMiniTrace(t *testing.T) {
 	ctx, handle := StartRootSpan(context.Background(), "root", traceID, nil)
 	var wg sync.WaitGroup
 
-	if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+	if spanID1, traceID1, ok := CurrentID(ctx); ok {
 		spanID := handle.spanContext.spanID
 		if spanID != spanID1 {
 			t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
@@ -95,7 +100,7 @@ func TestMiniTrace(t *testing.T) {
 	for i := 1; i < 5; i++ {
 		ctx, handle := StartSpanWithContext(ctx, strconv.Itoa(i))
 
-		if spanID1, traceID1, ok := CurrentSpanID(ctx); ok {
+		if spanID1, traceID1, ok := CurrentID(ctx); ok {
 			spanID := handle.spanContext.spanID
 			if spanID != spanID1 {
 				t.Fatalf("unmatched span ID: expected %d got %d", spanID, spanID1)
