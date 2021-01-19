@@ -118,10 +118,7 @@ func (sh *SpanHandle) Finish() {
 
 	traceCtx := sh.spanContext.traceContext
 	sh.span.endWith(traceCtx)
-
-	traceCtx.mu.Lock()
-	traceCtx.collectedSpans = append(traceCtx.collectedSpans, sh.span)
-	traceCtx.mu.Unlock()
+	traceCtx.pushSpan(&sh.span)
 }
 
 func (sh *SpanHandle) TraceID() uint64 {
