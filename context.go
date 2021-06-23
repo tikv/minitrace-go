@@ -25,7 +25,7 @@ type spanContext struct {
 
 	// Shared trace context
 	traceContext *traceContext
-	spanID       uint32
+	spanID       uint64
 }
 
 func newSpanContext(ctx context.Context, tracingCtx *traceContext) *spanContext {
@@ -106,7 +106,7 @@ func (tc *traceContext) pushSpan(span *Span) (ok bool) {
 	return true
 }
 
-func (tc *traceContext) collect() (spans []Span, attachment interface{}) {
+func (tc *traceContext) collect() (trace Trace, attachment interface{}) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
@@ -115,7 +115,8 @@ func (tc *traceContext) collect() (spans []Span, attachment interface{}) {
 	}
 	tc.collected = true
 
-	spans = tc.collectedSpans
+	trace.Spans = tc.collectedSpans
+	trace.TraceID = tc.traceID
 	attachment = tc.attachment
 
 	tc.collectedSpans = nil

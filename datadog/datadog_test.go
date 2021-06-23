@@ -26,7 +26,7 @@ import (
 )
 
 func TestDatadog(t *testing.T) {
-	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
+	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, 0,nil)
 	handle.AddProperty("event1", "root")
 	handle.AddProperty("event2", "root")
 	var wg sync.WaitGroup
@@ -58,12 +58,12 @@ func TestDatadog(t *testing.T) {
 	}
 
 	wg.Wait()
-	spans, _ := handle.Collect()
+	trace, _ := handle.Collect()
 
 	rand.Seed(time.Now().UnixNano())
 
 	buf := bytes.NewBuffer([]byte{})
-	spanList := MiniSpansToDatadogSpanList("datadog-test", rand.Uint64(), 0, 0, spans)
+	spanList := MiniSpansToDatadogSpanList("datadog-test", trace)
 	if err := MessagePackEncode(buf, spanList); err == nil {
 		_ = Send(buf, "127.0.0.1:8126")
 	} else {
