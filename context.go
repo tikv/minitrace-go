@@ -25,7 +25,7 @@ type spanContext struct {
 
 	// Shared trace context
 	traceContext *traceContext
-	spanID       uint32
+	spanID       uint64
 }
 
 func newSpanContext(ctx context.Context, tracingCtx *traceContext) *spanContext {

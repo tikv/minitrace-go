@@ -14,15 +14,15 @@
 package minitrace
 
 type Span struct {
-	ID              uint32
-	ParentID        uint32 // 0 means Root
+	ID              uint64
+	ParentID        uint64 // 0 means Root
 	BeginUnixTimeNs uint64
 	DurationNs      uint64
 	Event           string
 	Properties      []Property
 }
 
-func (s *Span) beginWith(parentID uint32, event string) {
+func (s *Span) beginWith(parentID uint64, event string) {
 	s.ID = nextID()
 	s.ParentID = parentID
 

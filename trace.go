@@ -15,24 +15,19 @@ package minitrace
 
 import (
 	"context"
-	"sync/atomic"
+	"math/rand"
 )
 
-// The id 0 have a special semantic. So id should begin from 1.
-var idGen uint32 = 1
-
-// Returns incremental uint32 unique ID.
-func nextID() uint32 {
-	return atomic.AddUint32(&idGen, 1)
+// Returns random uint64 ID.
+func nextID() uint64 {
+	return rand.Uint64()
 }
 
-func StartRootSpan(ctx context.Context, event string, traceID uint64, attachment interface{}) (context.Context, TraceHandle) {
+func StartRootSpan(ctx context.Context, event string, traceID uint64, parentSpanID uint64, attachment interface{}) (context.Context, TraceHandle) {
 	traceCtx := newTraceContext(traceID, attachment)
 	spanCtx := newSpanContext(ctx, traceCtx)
 
-	// Root span doesn't have a parent. Its parent span id is set to 0.
-	const ParentID = 0
-	spanHandle := newSpanHandle(spanCtx, ParentID, event)
+	spanHandle := newSpanHandle(spanCtx, parentSpanID, event)
 
 	return spanCtx, TraceHandle{spanHandle}
 }
@@ -66,7 +61,7 @@ func StartSpan(ctx context.Context, event string) (handle SpanHandle) {
 	return newSpanHandle(spanCtx, parentSpanCtx.spanID, event)
 }
 
-func CurrentID(ctx context.Context) (spanID uint32, traceID uint64, ok bool) {
+func CurrentID(ctx context.Context) (spanID uint64, traceID uint64, ok bool) {
 	if s, ok := ctx.Value(activeTraceKey).(*spanContext); ok {
 		return s.spanID, s.traceContext.traceID, ok
 	}
@@ -88,7 +83,7 @@ type SpanHandle struct {
 	finished    bool
 }
 
-func newSpanHandle(spanCtx *spanContext, parentSpanID uint32, event string) (sh SpanHandle) {
+func newSpanHandle(spanCtx *spanContext, parentSpanID uint64, event string) (sh SpanHandle) {
 	sh.spanContext = spanCtx
 	sh.span.beginWith(parentSpanID, event)
 	sh.finished = false
