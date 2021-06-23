@@ -26,7 +26,8 @@ type Span struct {
 }
 
 type Trace struct {
-	TraceID     int64
+	TraceIDLow  int64
+	TraceIDHigh int64
 	ServiceName string
 	Spans       []Span
 }
