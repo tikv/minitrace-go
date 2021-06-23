@@ -72,7 +72,7 @@ func MiniSpansToJaegerTrace(
 	}
 
 	return Trace{
-		TraceID:     traceID,
+		TraceIDLow:  traceID,
 		ServiceName: serviceName,
 		Spans:       retSpans,
 	}
@@ -102,9 +102,9 @@ func ThriftCompactEncode(
 
 	for _, span := range trace.Spans {
 		buf = append(buf, 0x16)
-		encodeVarInt(&buf, zigzagFromI64(trace.TraceID))
+		encodeVarInt(&buf, zigzagFromI64(trace.TraceIDLow))
 		buf = append(buf, 0x16)
-		encodeVarInt(&buf, zigzagFromI64(trace.TraceID))
+		encodeVarInt(&buf, zigzagFromI64(trace.TraceIDHigh))
 		buf = append(buf, 0x16)
 		encodeVarInt(&buf, zigzagFromI64(span.SpanID))
 		buf = append(buf, 0x16)
@@ -115,9 +115,9 @@ func ThriftCompactEncode(
 		buf = append(buf, []byte{0x19, 0x1c, 0x15}...)
 		encodeVarInt(&buf, uint64(zigzagFromI32(int32(1 /* Follow from */))))
 		buf = append(buf, 0x16)
-		encodeVarInt(&buf, zigzagFromI64(trace.TraceID))
+		encodeVarInt(&buf, zigzagFromI64(trace.TraceIDLow))
 		buf = append(buf, 0x16)
-		encodeVarInt(&buf, zigzagFromI64(trace.TraceID))
+		encodeVarInt(&buf, zigzagFromI64(trace.TraceIDHigh))
 		buf = append(buf, 0x16)
 		encodeVarInt(&buf, zigzagFromI64(span.ParentID))
 		buf = append(buf, 0x00)
