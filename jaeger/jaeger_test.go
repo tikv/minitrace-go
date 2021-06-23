@@ -26,7 +26,7 @@ import (
 )
 
 func TestJaeger(t *testing.T) {
-	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, nil)
+	ctx, handle := minitrace.StartRootSpan(context.Background(), "root", 10010, 0, nil)
 	handle.AddProperty("event1", "root")
 	handle.AddProperty("event2", "root")
 	var wg sync.WaitGroup
@@ -58,12 +58,12 @@ func TestJaeger(t *testing.T) {
 	}
 
 	wg.Wait()
-	spans, _ := handle.Collect()
+	mtrace, _ := handle.Collect()
 
 	buf := bytes.NewBuffer(make([]uint8, 0, 4096))
 	rand.Seed(time.Now().UnixNano())
 
-	trace := MiniSpansToJaegerTrace("minitrace-test", rand.Int63(), 0, 0, spans)
+	trace := MiniSpansToJaegerTrace("minitrace-test", mtrace)
 	if err := ThriftCompactEncode(buf, trace); err == nil {
 		_ = Send(buf.Bytes(), "127.0.0.1:6831")
 	}

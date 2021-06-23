@@ -18,6 +18,11 @@ import (
 	"math/rand"
 )
 
+type Trace struct {
+	TraceID uint64
+	Spans   []Span
+}
+
 // Returns random uint64 ID.
 func nextID() uint64 {
 	return rand.Uint64()
@@ -122,7 +127,7 @@ type TraceHandle struct {
 	SpanHandle
 }
 
-func (th *TraceHandle) Collect() (spans []Span, attachment interface{}) {
+func (th *TraceHandle) Collect() (trace Trace, attachment interface{}) {
 	th.SpanHandle.Finish()
 	return th.spanContext.traceContext.collect()
 }
