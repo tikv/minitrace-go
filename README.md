@@ -40,7 +40,7 @@ func main() {
     ctx := context.Background()
 
     // enable tracing
-    ctx, root := minitrace.StartRootSpan(ctx, "root", 0, nil)
+    ctx, root := minitrace.StartRootSpan(ctx, "root", 10010, 0, nil)
 
     root.AddProperty("k1", "v1")
 
