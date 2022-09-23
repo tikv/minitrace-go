@@ -35,8 +35,8 @@ func monotimeNs() uint64 {
 
 // Standard library's `time.Now()` will invoke two syscalls in Linux. One is `CLOCK_REALTIME` and
 // another is `CLOCK_MONOTONIC`. In our case, we'd like to separate these two calls to measure
-// time for performance purpose.
-// `unixtimeNs()` is identical to Linux's `clock_gettime(CLOCK_REALTIME, &ts)`
+// time for performance purpose. However, the walltime() is removed from runtime in go 1.17.
+// We have to use the function time_now().
 func unixtimeNs() uint64 {
 	sec, nsec, _ := time_now()
 	return uint64(sec*1_000_000_000 + int64(nsec))
