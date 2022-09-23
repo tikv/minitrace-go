@@ -22,7 +22,7 @@ import (
 //go:linkname nanotime runtime.nanotime
 func nanotime() int64
 
-//go:linkname time_now runtime.time_now
+//go:linkname time_now time.now
 func time_now() (sec int64, nsec int32, mono int64)
 
 // Standard library's `time.Now()` will invoke two syscalls in Linux. One is `CLOCK_REALTIME` and
