@@ -1,3 +1,8 @@
-committers:
-  # TODO: in your repo created from this template, you should list the
-  # project committers below
+# See the OWNERS docs at https://www.kubernetes.dev/docs/guide/owners/#owners
+# The members of 'sig-community-*' are synced from memberships defined in repository: https://github.com/tikv/community.
+filters:
+  .*:
+    approvers:
+      - sig-community-approvers
+    reviewers:
+      - sig-community-reviewers
